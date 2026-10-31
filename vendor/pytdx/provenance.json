@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/rainx/pytdx",
+  "commit": "d1952986c231bed66d1230be41960e9246b8930f",
+  "source_path": "pytdx/reader/daily_bar_reader.py",
+  "download_url": "https://raw.githubusercontent.com/rainx/pytdx/d1952986c231bed66d1230be41960e9246b8930f/pytdx/reader/daily_bar_reader.py",
+  "sha256": "9189a0f419198b567f948972f0ce5334d3604f216a9a7d850cee16e1a0d66aa4",
+  "downloaded_at": "2026-10-31T02:39:14.687389+00:00",
+  "modified": false,
+  "usage": "Reference only; not imported by StockStudy runtime"
+}

@@ -1,0 +1,2 @@
+* text=auto eol=lf
+vendor/pytdx/daily_bar_reader.py -text whitespace=-blank-at-eof
