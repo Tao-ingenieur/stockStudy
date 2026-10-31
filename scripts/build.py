@@ -55,7 +55,7 @@ def build_windows(output_root: Path):
             "--name", "stockstudy", "--paths", str(staging),
             "--add-data", f"{REPO / 'resources' / 'security_names.csv'}{os.pathsep}stockstudy/resources",
             "--distpath", str(release), "--workpath", str(work / "work"),
-            "--specpath", str(work), str(REPO / "apps" / "cli_entry.py"),
+            "--specpath", str(work), str(REPO / "apps" / "windows_entry.py"),
         ], check=True, cwd=staging)
     finish_release(release, release / "stockstudy.exe")
 

@@ -1,6 +1,6 @@
 # 架构与客户端规划
 
-当前依赖方向为：CLI → service → strategies / sources → models。报告层将统一结果写成 CSV 和 JSON。领域模型与策略不依赖终端、网络、pandas 或操作系统界面。
+当前依赖方向为：CLI → service → strategies / readers → models。报告层将统一结果写成 CSV 和 JSON。领域模型与策略不依赖终端、网络、pandas 或操作系统界面。
 
 ## 代码职责
 
@@ -8,18 +8,20 @@
 | --- | --- |
 | `models.py` | 证券、日线、命中记录、扫描结果 |
 | `strategies.py` | 精确价格形态和历史跌幅规则，纯函数 |
-| `sources/base.py` | 数据源 Protocol |
-| `sources/tdx.py` | 本地 `.day` 与 ZIP 适配 |
+| `readers/base.py` | 数据源 Protocol |
+| `readers/tdx.py` | 本地 `.day` 与 ZIP 适配 |
 | `service.py` | 扫描协调、单股票错误隔离、数据日期过滤 |
 | `names.py` | 可替换的证券名称元数据 |
 | `reports.py` | 可追踪参数和数据状态的输出 |
 | `cli.py` | 参数与退出码；不包含业务规则 |
+| `windows.py` | Windows 双击交互菜单及命令行转发 |
 
 未来图形桌面、Web API 或后台任务应调用 `service.scan()`，而不是模拟 CLI 或重复写一份筛选逻辑。读取器生命周期由调用方管理。
 
 ## 客户端边界
 
-- CLI 和 Windows EXE：直接读取本机文件，通过相同 CLI 入口调用核心。
+- CLI：通过参数调用分析核心。
+- Windows EXE：无参数时显示交互菜单，有参数时转发到 CLI；直接读取本机文件。
 - Web：后续增加后端作业接口与前端；共享数据源在服务端，结果使用 JSON 模型。
 - Android / iOS / 微信小程序：建议查询后端作业和结果；若需要离线功能，应另行设计数据同步、存储及本地引擎。
 - iOS 需在 macOS 构建并处理签名；小程序需 AppID 与合法域名等配置；这些不应伪装成当前已可发布的功能。

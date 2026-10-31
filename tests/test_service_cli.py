@@ -10,7 +10,7 @@ from pathlib import Path
 from stockstudy.cli import main
 from stockstudy.names import load_names
 from stockstudy.service import scan
-from stockstudy.sources.tdx import TdxSource
+from stockstudy.readers.tdx import TdxSource
 from stockstudy.strategies import Strategy
 from test_tdx import record
 

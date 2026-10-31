@@ -9,7 +9,8 @@ StockStudy 读取本地股票日线，按最低价数字形态筛选记录，支
 ```text
 stockStudy/
 ├── repo/                         GitHub 仓库目录
-│   ├── src/                      领域模型、策略、数据源、服务、报告、CLI
+│   ├── src/                      全部业务源码
+│   │   └── readers/              行情文件读取器（当前为通达信）
 │   ├── tests/                    单元与集成测试
 │   ├── scripts/                  测试和构建入口
 │   ├── resources/                股票名称等小型参考资料
@@ -151,7 +152,9 @@ python repo/stockstudy.py scan --as-of 2026-10-30
 
 ## 发布和不同客户端
 
-当前实际实现 CLI 与 Windows **命令行** EXE；Windows 版不是图形界面。发布包不携带大体积行情数据，名称表内置。发布目录不包含版本号，`--help` 会显示软件版本，也可以使用 `--version`、`-version` 或 `-V` 查询。
+当前提供 CLI 和 Windows 控制台程序。双击 `dist/windows/stockstudy.exe` 会显示中文交互菜单，可选择筛选模式、修改数据及输出路径、查看帮助；分析完成或数据读取失败后保留窗口并返回菜单，输入 `0` 退出。
+
+Windows EXE 也支持命令行参数，例如 `stockstudy.exe scan --lookback 20`。发布包不携带大体积行情数据，名称表内置。发布目录不包含版本号，`--help` 会显示软件版本，也可以使用 `--version`、`-version` 或 `-V` 查询。
 
 ```powershell
 python repo/scripts/build.py --target cli
@@ -187,7 +190,7 @@ dist/windows/stockstudy.exe scan
 python repo/scripts/test.py
 ```
 
-测试覆盖价格形态、精度、跌幅阈值、历史边界、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
+测试覆盖 Windows 无参数交互菜单、运行后返回菜单、命令行兼容、价格形态、精度、跌幅阈值、历史边界、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
 
 ## 后续数据源
 

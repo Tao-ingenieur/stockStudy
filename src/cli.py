@@ -9,7 +9,7 @@ from . import __version__
 from .names import load_names
 from .reports import write_report
 from .service import scan
-from .sources import SOURCE_FACTORIES, open_source
+from .readers import SOURCE_FACTORIES, open_source
 from .strategies import Strategy
 
 

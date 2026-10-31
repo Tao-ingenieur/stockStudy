@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from stockstudy.models import Security
-from stockstudy.sources.tdx import RECORD, TdxSource, parse_records, stock_security
+from stockstudy.readers.tdx import RECORD, TdxSource, parse_records, stock_security
 
 
 def record(day=20261030, low=1388, high=1400):

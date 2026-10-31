@@ -2,7 +2,7 @@ from datetime import date
 from typing import Callable
 
 from .models import ScanResult
-from .sources.base import DailyBarSource
+from .readers.base import DailyBarSource
 from .strategies import Strategy, screen
 
 
