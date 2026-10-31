@@ -1,66 +1,326 @@
-"""Interactive console launcher for double-clicking the Windows executable."""
+"""Windows graphical application. No console is needed."""
 
+import os
+import queue
 import sys
-import traceback
-from pathlib import Path
+import threading
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 
 from . import __version__
-from .cli import find_workspace, main as cli_main
+from .application import AnalysisOutcome, analyze, make_request
+from .cli import find_workspace
+from .service import ScanCancelled
+
+MODES = {"价格形态": "pattern", "价格形态 + 跌幅": "pattern-drop"}
+PATTERNS = {"triple-digit": "三位同数", "decimal-pair": "小数对子", "mirror-pair": "镜像价格"}
 
 
-def interactive() -> int:
-    workspace = find_workspace()
-    data = workspace / "stock_data" / "tongdaxin" / "hsjday.zip"
-    output = workspace / "output"
-    while True:
-        print(f"\nStockStudy {__version__} 股票日线筛选")
-        print(f"行情数据：{data}\n结果目录：{output}")
-        print("1 价格形态筛选（最近 1 条记录）")
-        print("2 价格形态与跌幅筛选（最近 100 条记录）")
-        print("3 修改行情和结果目录\n4 查看命令行帮助\n0 退出")
-        choice = input("请选择 [0-4]：").strip()
-        if choice == "0":
-            return 0
-        if choice == "3":
-            entered = input("行情 ZIP 或解压目录（回车保留）：").strip().strip('"')
-            if entered:
-                data = Path(entered).expanduser().resolve()
-            entered = input("结果目录（回车保留）：").strip().strip('"')
-            if entered:
-                output = Path(entered).expanduser().resolve()
-            continue
-        if choice == "4":
-            try:
-                cli_main(["--help"])
-            except SystemExit as stopped:
-                if stopped.code:
-                    raise
-        elif choice in {"1", "2"}:
-            print("\n正在分析，请稍候……", flush=True)
-            status = cli_main([
-                "scan", "--strategy", "pattern" if choice == "1" else "pattern-drop",
-                "--data", str(data), "--output-dir", str(output),
-            ])
-            print({0: "分析完成，结果位置见上方 Reports。", 1: "分析未完成，请查看上方错误及数据路径。",
-                   2: "分析完成，部分文件读取失败，请查看 summary.json。"}[status])
-        else:
-            print("请输入 0 到 4。")
-            continue
-        input("按回车返回菜单……")
+class StockStudyApp:
+    def __init__(self, root: tk.Tk):
+        self.root = root
+        root.title(f"StockStudy {__version__} · 股票日线分析")
+        root.geometry("1180x800")
+        root.minsize(1000, 720)
+        root.configure(background="#f4f6fb")
+        self.events = queue.Queue()
+        self.cancel_event = threading.Event()
+        self.running = False
+        self.outcome: AnalysisOutcome | None = None
+        self.filter_after = None
+        workspace = find_workspace()
+        self.data = tk.StringVar(value=str(workspace / "stock_data/tongdaxin/hsjday.zip"))
+        self.output = tk.StringVar(value=str(workspace / "output"))
+        self.mode = tk.StringVar(value="价格形态")
+        self.lookback = tk.StringVar(value="1")
+        self.threshold = tk.StringVar(value="40")
+        self.references = tk.StringVar(value="40,20,10,5")
+        self.as_of = tk.StringVar()
+        self.search = tk.StringVar()
+        self.status = tk.StringVar(value="就绪 · 选择数据和策略后，点击开始分析")
+        self.detail = tk.StringVar(value="价格使用不复权日线。日期留空时，各股票使用自身最后一条记录。")
+        self.counts = tk.StringVar(value="命中记录  —       命中股票  —       读取异常  —")
+        self.preview = tk.StringVar(value="分析后将在这里显示结果")
+        self.rule = tk.StringVar()
+        self._style()
+        self._build()
+        self._mode_changed()
+        self.search.trace_add("write", self._schedule_filter)
+        root.protocol("WM_DELETE_WINDOW", self._close)
+        self.poll_after = root.after(100, self._poll)
+        root.bind("<Destroy>", self._destroyed, add="+")
+
+    def _style(self):
+        style = ttk.Style(self.root)
+        style.theme_use("clam")
+        style.configure(".", font=("Microsoft YaHei UI", 10))
+        style.configure("TFrame", background="#f4f6fb")
+        style.configure("TLabel", background="#f4f6fb", foreground="#25324b")
+        style.configure("Title.TLabel", font=("Microsoft YaHei UI", 24, "bold"), foreground="#172542")
+        style.configure("Muted.TLabel", foreground="#63718a")
+        style.configure("Stats.TLabel", font=("Microsoft YaHei UI", 12, "bold"), foreground="#224c94")
+        style.configure("TLabelframe", background="#f4f6fb", bordercolor="#d5deed")
+        style.configure("TLabelframe.Label", background="#f4f6fb", foreground="#25324b", font=("Microsoft YaHei UI", 11, "bold"))
+        style.configure("TButton", padding=(12, 7))
+        style.configure("Primary.TButton", background="#235dd3", foreground="white", font=("Microsoft YaHei UI", 10, "bold"))
+        style.map("Primary.TButton", background=[("active", "#194db7"), ("disabled", "#c6d0e3")])
+        style.configure("TEntry", padding=5)
+        style.configure("Treeview", rowheight=29, background="white", fieldbackground="white", borderwidth=0)
+        style.configure("Treeview.Heading", font=("Microsoft YaHei UI", 10, "bold"), padding=(8, 8))
+
+    def _build(self):
+        container = ttk.Frame(self.root, padding=(24, 16, 24, 16))
+        container.pack(fill="both", expand=True)
+        header = ttk.Frame(container)
+        header.pack(fill="x", pady=(0, 16))
+        ttk.Label(header, text="StockStudy", style="Title.TLabel").pack(side="left")
+        ttk.Label(header, text=f"  本地日线分析  /  {__version__}", style="Muted.TLabel").pack(side="left", padx=10, pady=(10, 0))
+        ttk.Button(header, text="关于与帮助", command=self.about).pack(side="right")
+
+        settings = ttk.LabelFrame(container, text="分析设置", padding=(16, 12))
+        settings.pack(fill="x")
+        settings.columnconfigure(1, weight=1)
+        ttk.Label(settings, text="行情数据").grid(row=0, column=0, sticky="w", padx=(0, 12), pady=5)
+        self.data_entry = ttk.Entry(settings, textvariable=self.data)
+        self.data_entry.grid(row=0, column=1, sticky="ew", pady=5)
+        self.zip_button = ttk.Button(settings, text="选择 ZIP", command=self._choose_zip)
+        self.zip_button.grid(row=0, column=2, padx=(8, 0))
+        self.directory_button = ttk.Button(settings, text="选择目录", command=self._choose_data_dir)
+        self.directory_button.grid(row=0, column=3, padx=(8, 0))
+        ttk.Label(settings, text="结果保存").grid(row=1, column=0, sticky="w", padx=(0, 12), pady=5)
+        self.output_entry = ttk.Entry(settings, textvariable=self.output)
+        self.output_entry.grid(row=1, column=1, sticky="ew", pady=5)
+        self.output_button = ttk.Button(settings, text="选择目录", command=self._choose_output)
+        self.output_button.grid(row=1, column=2, columnspan=2, sticky="e")
+
+        parameters = ttk.Frame(settings)
+        parameters.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(12, 5))
+        ttk.Label(parameters, text="策略").pack(side="left")
+        self.mode_box = ttk.Combobox(parameters, textvariable=self.mode, values=list(MODES), state="readonly", width=20)
+        self.mode_box.pack(side="left", padx=(8, 20))
+        self.mode_box.bind("<<ComboboxSelected>>", self._mode_changed)
+        ttk.Label(parameters, text="最近记录数").pack(side="left")
+        self.lookback_entry = ttk.Entry(parameters, textvariable=self.lookback, width=7)
+        self.lookback_entry.pack(side="left", padx=(8, 20))
+        ttk.Label(parameters, text="末条日期").pack(side="left")
+        self.date_entry = ttk.Entry(parameters, textvariable=self.as_of, width=13)
+        self.date_entry.pack(side="left", padx=(8, 8))
+        ttk.Label(parameters, text="YYYY-MM-DD，可留空", style="Muted.TLabel").pack(side="left")
+
+        advanced = ttk.Frame(settings)
+        advanced.grid(row=3, column=0, columnspan=4, sticky="ew", pady=5)
+        ttk.Label(advanced, text="跌幅阈值 (%)").pack(side="left")
+        self.threshold_entry = ttk.Entry(advanced, textvariable=self.threshold, width=7)
+        self.threshold_entry.pack(side="left", padx=(8, 20))
+        ttk.Label(advanced, text="历史参考位置").pack(side="left")
+        self.references_entry = ttk.Entry(advanced, textvariable=self.references, width=18)
+        self.references_entry.pack(side="left", padx=(8, 12))
+        ttk.Label(advanced, text="仅“价格形态 + 跌幅”策略使用", style="Muted.TLabel").pack(side="left")
+        ttk.Label(settings, textvariable=self.rule, style="Muted.TLabel", wraplength=1020).grid(row=4, column=0, columnspan=4, sticky="w", pady=(9, 0))
+
+        actions = ttk.Frame(container)
+        actions.pack(fill="x", pady=(14, 10))
+        self.start_button = ttk.Button(actions, text="开始分析", style="Primary.TButton", command=self.start)
+        self.start_button.pack(side="left")
+        self.cancel_button = ttk.Button(actions, text="取消", command=self.cancel, state="disabled")
+        self.cancel_button.pack(side="left", padx=8)
+        self.progress = ttk.Progressbar(actions, mode="determinate", maximum=100, length=260)
+        self.progress.pack(side="left", padx=(12, 16))
+        ttk.Label(actions, textvariable=self.status).pack(side="left", fill="x", expand=True)
+
+        ttk.Label(container, textvariable=self.counts, style="Stats.TLabel").pack(anchor="w", pady=(3, 12))
+        tools = ttk.Frame(container)
+        tools.pack(fill="x", pady=(0, 8))
+        ttk.Label(tools, text="筛选结果", font=("Microsoft YaHei UI", 12, "bold")).pack(side="left")
+        ttk.Label(tools, text="搜索代码 / 名称 / 日期", style="Muted.TLabel").pack(side="left", padx=(20, 8))
+        ttk.Entry(tools, textvariable=self.search, width=24).pack(side="left")
+        self.folder_button = ttk.Button(tools, text="打开结果目录", command=self.open_folder, state="disabled")
+        self.folder_button.pack(side="right")
+        self.csv_button = ttk.Button(tools, text="打开完整 CSV", command=self.open_csv, state="disabled")
+        self.csv_button.pack(side="right", padx=8)
+
+        footer = ttk.Frame(container)
+        footer.pack(side="bottom", fill="x", pady=(8, 0))
+        ttk.Label(footer, textvariable=self.preview, style="Muted.TLabel").pack(anchor="w", pady=(0, 4))
+        ttk.Label(footer, textvariable=self.detail, style="Muted.TLabel", wraplength=1080).pack(anchor="w")
+        table_frame = ttk.Frame(container)
+        table_frame.pack(fill="both", expand=True)
+        columns = ("symbol", "name", "date", "low", "pattern", "reference", "drop")
+        self.table = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
+        headings = ("股票代码", "股票名称", "日期", "最低价", "价格形态", "参考日", "跌幅")
+        widths = (110, 150, 120, 100, 130, 150, 90)
+        for column, heading, width in zip(columns, headings, widths):
+            self.table.heading(column, text=heading)
+            self.table.column(column, width=width, minwidth=75, anchor="w" if column == "name" else "center")
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
+        self.table.configure(yscrollcommand=scrollbar.set)
+        self.table.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        self.table.tag_configure("alternate", background="#f2f6fc")
+        self.inputs = [self.data_entry, self.output_entry, self.zip_button, self.directory_button,
+                       self.output_button, self.lookback_entry, self.date_entry]
+
+    def _mode_changed(self, _event=None):
+        broad = self.mode.get() == "价格形态 + 跌幅"
+        self.lookback.set("100" if broad else "1")
+        self.rule.set("规则：小数两位相同或镜像价格，并且相对指定历史日最高价的跌幅严格大于阈值。"
+            if broad else "规则：最低价整数个位与两位小数相同（如 13.33），或整数与小数相同 / 倒序（如 12.12、12.21）。")
+        for widget in (self.threshold_entry, self.references_entry):
+            widget.configure(state="normal" if broad and not self.running else "disabled")
+
+    def _choose_zip(self):
+        value = filedialog.askopenfilename(parent=self.root, title="选择通达信日线数据包", filetypes=[("ZIP 数据包", "*.zip"), ("全部文件", "*.*")])
+        if value:
+            self.data.set(value)
+
+    def _choose_data_dir(self):
+        value = filedialog.askdirectory(parent=self.root, title="选择含 sh/lday、sz/lday 的数据目录")
+        if value:
+            self.data.set(value)
+
+    def _choose_output(self):
+        value = filedialog.askdirectory(parent=self.root, title="选择分析结果保存目录")
+        if value:
+            self.output.set(value)
+
+    def _set_running(self, running):
+        self.running = running
+        self.start_button.configure(state="disabled" if running else "normal")
+        self.cancel_button.configure(state="normal" if running else "disabled")
+        for widget in self.inputs:
+            widget.configure(state="disabled" if running else "normal")
+        self.mode_box.configure(state="disabled" if running else "readonly")
+        state = "normal" if not running and MODES[self.mode.get()] == "pattern-drop" else "disabled"
+        self.threshold_entry.configure(state=state)
+        self.references_entry.configure(state=state)
+
+    def start(self):
+        if self.running:
+            return
+        try:
+            request = make_request(self.data.get(), self.output.get(), MODES[self.mode.get()], self.lookback.get(),
+                                   self.threshold.get(), self.references.get(), self.as_of.get())
+        except ValueError as exc:
+            messagebox.showerror("请检查分析设置", str(exc), parent=self.root)
+            return
+        self.cancel_event.clear()
+        self._set_running(True)
+        self.progress["value"] = 0
+        self.status.set("正在读取行情数据……")
+        self.detail.set("分析进行中。取消后不会生成本次报告，之前的结果不受影响。")
+        threading.Thread(target=self._worker, args=(request,), daemon=True).start()
+
+    def _worker(self, request):
+        def progress(done, total):
+            if done % 50 == 0 or done == total:
+                self.events.put(("progress", (done, total)))
+        try:
+            outcome = analyze(request, progress=progress, cancelled=self.cancel_event.is_set)
+            self.events.put(("done", outcome))
+        except ScanCancelled:
+            self.events.put(("cancelled", None))
+        except Exception as exc:
+            self.events.put(("error", str(exc)))
+
+    def _poll(self):
+        try:
+            while True:
+                kind, value = self.events.get_nowait()
+                if kind == "progress":
+                    done, total = value
+                    self.progress["value"] = 100 * done / total if total else 0
+                    self.status.set(f"正在扫描 {done:,} / {total:,}")
+                else:
+                    self._set_running(False)
+                    if kind == "done":
+                        self.outcome = value
+                        summary = value.summary
+                        self.progress["value"] = 100
+                        self.status.set("分析完成" if not summary["read_errors"] else "已完成，部分文件读取失败")
+                        self.counts.set(f"命中记录  {summary['matches']:,}       命中股票  {summary['matched_securities']:,}       读取异常  {summary['read_errors']:,}")
+                        self.detail.set(f"已保存到 {value.directory}。缺失名称 {summary['missing_name_count']} 个；日期不符排除 {summary['date_mismatches']} 个。")
+                        self.folder_button.configure(state="normal")
+                        self.csv_button.configure(state="normal")
+                        self._render_rows()
+                    elif kind == "cancelled":
+                        self.status.set("已取消")
+                        self.detail.set("本次分析已取消，未生成新报告。之前的结果仍可查看。")
+                    elif kind == "error":
+                        self.status.set("分析失败，请检查数据")
+                        self.detail.set("本次分析未完成。请检查行情数据路径、数据格式和保存目录的写入权限。")
+                        messagebox.showerror("分析失败", value, parent=self.root)
+        except queue.Empty:
+            pass
+        self.poll_after = self.root.after(100, self._poll)
+
+    def cancel(self):
+        self.cancel_event.set()
+        self.cancel_button.configure(state="disabled")
+        self.status.set("正在取消，请稍候……")
+
+    def _schedule_filter(self, *_args):
+        if self.filter_after is not None:
+            self.root.after_cancel(self.filter_after)
+        self.filter_after = self.root.after(180, self._render_rows)
+
+    def _render_rows(self):
+        if self.filter_after is not None:
+            self.root.after_cancel(self.filter_after)
+        self.filter_after = None
+        self.table.delete(*self.table.get_children())
+        if self.outcome is None:
+            return
+        term = self.search.get().strip().lower()
+        rows = [row for row in self.outcome.rows if not term or term in " ".join(
+            str(row[key]) for key in ("market", "code", "name", "date")).lower()]
+        for i, row in enumerate(rows[:2000]):
+            drop = "—" if row["drop_ratio"] is None else f"{row['drop_ratio']:.1%}"
+            self.table.insert("", "end", values=(row["market"] + row["code"], row["name"] or "—", row["date"],
+                row["low"], PATTERNS.get(row["pattern"], row["pattern"]), row["reference_date"] or "—", drop),
+                tags=("alternate",) if i % 2 else ())
+        self.preview.set(f"显示 {min(len(rows), 2000):,} / {len(rows):,} 条匹配记录 · 完整结果已保存为 CSV 和 JSON")
+
+    def _open(self, path):
+        try:
+            os.startfile(str(path))
+        except OSError as exc:
+            messagebox.showerror("无法打开", f"{path}\n\n{exc}", parent=self.root)
+
+    def open_folder(self):
+        if self.outcome:
+            self._open(self.outcome.directory)
+
+    def open_csv(self):
+        if self.outcome:
+            self._open(self.outcome.directory / "matches.csv")
+
+    def about(self):
+        messagebox.showinfo("关于 StockStudy", f"StockStudy {__version__}\n\n选择通达信 ZIP 或数据目录，设置策略后开始分析。\n扫描天数按交易记录条数计算。\n末条日期留空时不统一各股票的数据日期。\n\n价格不复权；筛选规则不确认阶段底部。\n分析结果保存在指定目录，支持 CSV 和 JSON。", parent=self.root)
+
+    def _close(self):
+        if self.running:
+            messagebox.showinfo("分析进行中", "请先取消分析，等待任务停止后再关闭窗口。", parent=self.root)
+            return
+        self.root.destroy()
+
+    def _destroyed(self, event):
+        if event.widget is self.root:
+            for timer in (self.poll_after, self.filter_after):
+                if timer is not None:
+                    self.root.after_cancel(timer)
 
 
 def main(argv=None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
-    if arguments:
+    if arguments and sys.stdout is not None:
+        from .cli import main as cli_main
         return cli_main(arguments)
-    try:
-        return interactive()
-    except (EOFError, KeyboardInterrupt):
+    root = tk.Tk()
+    if arguments and arguments[0] in {"--version", "-version", "-V", "--help", "-h"}:
+        root.withdraw()
+        messagebox.showinfo("StockStudy", f"StockStudy {__version__}\n\n双击程序打开图形界面。\n命令行分析请使用 dist/cli/stockstudy.pyz。", parent=root)
+        root.destroy()
         return 0
-    except Exception:
-        traceback.print_exc()
-        try:
-            input("程序发生错误，请保留上方错误信息。按回车退出……")
-        except (EOFError, KeyboardInterrupt):
-            pass
-        return 1
+    StockStudyApp(root)
+    root.mainloop()
+    return 0

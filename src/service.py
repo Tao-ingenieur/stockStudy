@@ -6,17 +6,24 @@ from .readers.base import DailyBarSource
 from .strategies import Strategy, screen
 
 
+class ScanCancelled(Exception):
+    """User cancelled before a complete report was produced."""
+
+
 def scan(
     source: DailyBarSource,
     strategy: Strategy,
     *,
     as_of: date | None = None,
     progress: Callable[[int, int], None] | None = None,
+    cancelled: Callable[[], bool] | None = None,
 ) -> ScanResult:
     """as_of requires each security's last record to have exactly that date."""
     result = ScanResult()
     securities = source.securities()
     for index, security in enumerate(securities, start=1):
+        if cancelled and cancelled():
+            raise ScanCancelled()
         try:
             bars = source.read_bars(security, strategy.required_bars)
             if not bars:

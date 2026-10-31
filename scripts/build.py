@@ -1,4 +1,4 @@
-"""Build Python zipapp and optionally a native Windows console executable."""
+"""Build the Python CLI and the Windows graphical application."""
 
 import argparse
 import importlib.util
@@ -51,7 +51,7 @@ def build_windows(output_root: Path):
         staging = Path(temp)
         stage_package(staging)
         subprocess.run([
-            sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--console",
+            sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--windowed",
             "--name", "stockstudy", "--paths", str(staging),
             "--add-data", f"{REPO / 'resources' / 'security_names.csv'}{os.pathsep}stockstudy/resources",
             "--distpath", str(release), "--workpath", str(work / "work"),

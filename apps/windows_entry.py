@@ -1,4 +1,4 @@
-"""Windows entry point: a double-click menu or the standard command line."""
+"""Windows graphical application entry point."""
 
 from stockstudy.windows import main
 

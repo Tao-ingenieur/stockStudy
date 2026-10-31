@@ -1,6 +1,6 @@
 # StockStudy 本地日线筛选工具
 
-StockStudy 读取本地股票日线，按最低价数字形态筛选记录，支持附加历史价格跌幅条件。当前已实现通达信 `.day` 文件及官方 ZIP 数据包读取，提供 CLI 和 Windows 命令行 EXE。策略核心与数据源、界面分离，便于以后增加其他行情来源和客户端。
+StockStudy 读取本地股票日线，按最低价数字形态筛选记录，支持附加历史价格跌幅条件。当前已实现通达信 `.day` 文件及官方 ZIP 数据包读取，提供 CLI 和 Windows 图形界面 EXE。策略核心与数据源、界面分离，便于以后增加其他行情来源和客户端。
 
 这是一套规则筛选工具。当前没有回测、实时行情、自动交易或阶段底部确认功能。价格采用文件中的原始、不复权价格。
 
@@ -152,9 +152,17 @@ python repo/stockstudy.py scan --as-of 2026-10-30
 
 ## 发布和不同客户端
 
-当前提供 CLI 和 Windows 控制台程序。双击 `dist/windows/stockstudy.exe` 会显示中文交互菜单，可选择筛选模式、修改数据及输出路径、查看帮助；分析完成或数据读取失败后保留窗口并返回菜单，输入 `0` 退出。
+Windows 版提供独立图形界面，双击 `dist/windows/stockstudy.exe` 即可使用，不会打开命令行窗口。
 
-Windows EXE 也支持命令行参数，例如 `stockstudy.exe scan --lookback 20`。发布包不携带大体积行情数据，名称表内置。发布目录不包含版本号，`--help` 会显示软件版本，也可以使用 `--version`、`-version` 或 `-V` 查询。
+1. 选择通达信 ZIP 数据包或解压后的行情目录，设置结果保存目录。
+2. 选择“价格形态”或“价格形态 + 跌幅”，设置最近记录数；跌幅模式可设置百分比阈值及历史参考位置。
+3. 可填写末条日期 `YYYY-MM-DD`；留空时采用每只股票自身最后一条记录。
+4. 点击“开始分析”。进度条显示扫描进度，可以取消；取消不会生成本次报告。
+5. 在表格中查看结果，按代码、名称或日期搜索，或点击“打开完整 CSV”“打开结果目录”。表格预览最多 2000 条，CSV / JSON 包含完整结果。
+
+窗口标题和“关于与帮助”显示版本。命令行任务使用 `dist/cli/stockstudy.pyz`。
+
+发布包不携带大体积行情数据，名称表内置。发布目录不包含版本号；CLI 的 `--help`、`--version`、`-version`、`-V` 可以显示软件版本。
 
 ```powershell
 python repo/scripts/build.py --target cli
@@ -167,8 +175,7 @@ python dist/cli/stockstudy.pyz scan
 uv venv repo/.venv --python 3.12
 uv pip install --python repo/.venv/Scripts/python.exe -r repo/requirements-build.txt
 repo/.venv/Scripts/python.exe repo/scripts/build.py --target all
-dist/windows/stockstudy.exe -version
-dist/windows/stockstudy.exe scan
+dist/windows/stockstudy.exe
 ```
 
 已存在 `.venv` 时跳过创建命令。构建依赖与项目运行依赖分离。
@@ -176,7 +183,7 @@ dist/windows/stockstudy.exe scan
 | 平台 | 发布目录 | 状态与要求 |
 | --- | --- | --- |
 | CLI | `dist/cli/` | Python zipapp，需 Python 3.11+ |
-| Windows EXE | `dist/windows/` | PyInstaller 打包，目标机器无需另装 Python |
+| Windows EXE | `dist/windows/` | 图形界面，目标机器无需另装 Python |
 | Web | `dist/web/` | 规划，需 Web UI 和服务端接口 |
 | Android APK | `dist/android/` | 规划，需 Android 客户端、SDK、签名 |
 | iOS IPA | `dist/ios/` | 规划，需 macOS、Xcode 和签名 |
@@ -190,7 +197,7 @@ dist/windows/stockstudy.exe scan
 python repo/scripts/test.py
 ```
 
-测试覆盖 Windows 无参数交互菜单、运行后返回菜单、命令行兼容、价格形态、精度、跌幅阈值、历史边界、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
+测试覆盖 GUI 参数校验、后台扫描、取消、结果表格及搜索、价格形态、精度、跌幅阈值、历史边界、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
 
 ## 后续数据源
 
