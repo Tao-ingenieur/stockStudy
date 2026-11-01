@@ -23,4 +23,4 @@
 
 CSV 候选字段为 `market,code,date,open,high,low,close,amount,volume`。这只是设计约定，当前还没有 CSV 行情导入命令。证券名称 CSV 属于元数据，与行情 CSV 是不同用途。
 
-证券状态独立于行情日期：来自 `security_names.csv` 的 `listed/delisted/unknown` 三态标识用于当前证券范围过滤。仅明确确认摘牌才默认排除；未知状态保留并披露。参考 README 的来源和更新流程。
+证券状态独立于行情日期：`security_names.csv` 的 `listed/delisted/unknown` 仅作为参考元数据保留在证券表和导出中，不参与分析或结果过滤。股票统一按行情末条日期和策略条件处理，GUI 不显示上市状态列或筛选框。来源和更新流程见 [使用手册](user-guide.md)。
