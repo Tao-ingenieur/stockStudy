@@ -8,7 +8,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from . import __version__
-from .application import analyze, export_analysis, filter_results, make_request, MARKET_FILTERS, STATUS_FILTERS
+from .application import analyze, export_analysis, filter_results, make_request, MARKET_FILTERS
 from .cli import find_workspace
 from .i18n import translate
 from .service import ScanCancelled
@@ -46,7 +46,6 @@ class StockStudyApp:
         self.as_of = tk.StringVar()
         self.exclude_delisted = tk.BooleanVar(value=True)
         self.result_market = tk.StringVar(value="all")
-        self.result_status = tk.StringVar(value="all")
         self.search = tk.StringVar()
         self.status = tk.StringVar()
         self.counts = tk.StringVar()
@@ -190,12 +189,6 @@ class StockStudyApp:
                                        values=[self.t("market_" + key) for key in MARKET_FILTERS])
         self.market_box.pack(side="left", padx=(8, 18))
         self.market_box.bind("<<ComboboxSelected>>", self._filters_changed)
-        ttk.Label(filters, text=self.t("status_filter")).pack(side="left")
-        self.status_label = tk.StringVar(value=self.t("status_" + self.result_status.get()))
-        self.status_box = ttk.Combobox(filters, textvariable=self.status_label, state="readonly", width=14,
-                                       values=[self.t("status_" + key) for key in STATUS_FILTERS])
-        self.status_box.pack(side="left", padx=(8, 18))
-        self.status_box.bind("<<ComboboxSelected>>", self._filters_changed)
         ttk.Button(filters, text=self.t("reset_filters"), command=self.reset_filters).pack(side="left")
         footer = ttk.Frame(results)
         footer.pack(side="bottom", fill="x", pady=(8, 0))
@@ -266,7 +259,7 @@ class StockStudyApp:
     def _result_columns(self):
         s = self.outcome.summary if self.outcome else {}
         mode = s.get("strategy", self.strategy_id)
-        columns = ["symbol", "name", "listing_status", "end_date", "close"]
+        columns = ["symbol", "name", "end_date", "close"]
         columns += (["fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma"]
                     if mode == "ma-cross" else ["base_date", "base_close", "gain_column"])
         self.table.configure(columns=columns)
@@ -410,23 +403,19 @@ class StockStudyApp:
             self._refresh_text()
 
     def _filter_values(self):
-        return dict(market=self.result_market.get(), status=self.result_status.get(), query=self.search.get().strip())
+        return dict(market=self.result_market.get(), status="all", query=self.search.get().strip())
 
     def _filtered_rows(self):
         return filter_results(self.outcome.rows, **self._filter_values()) if self.outcome else []
 
     def _filters_changed(self, _event=None):
         markets = list(MARKET_FILTERS)
-        statuses = list(STATUS_FILTERS)
         self.result_market.set(markets[[self.t("market_" + key) for key in markets].index(self.market_label.get())])
-        self.result_status.set(statuses[[self.t("status_" + key) for key in statuses].index(self.status_label.get())])
         self._render_rows()
 
     def reset_filters(self):
         self.result_market.set("all")
-        self.result_status.set("all")
         self.market_label.set(self.t("market_all"))
-        self.status_label.set(self.t("status_all"))
         self.search.set("")
         self._render_rows()
 
@@ -446,8 +435,7 @@ class StockStudyApp:
             return
         rows = self._filtered_rows()
         for i, row in enumerate(rows[:2000]):
-            values = [row["market"] + row["code"], row["name"] or "—",
-                      self.t("status_" + row.get("status", "unknown")), row["date"], row["close"]]
+            values = [row["market"] + row["code"], row["name"] or "—", row["date"], row["close"]]
             if self.outcome.summary.get("strategy") == "ma-cross":
                 values += [row[key] or "—" for key in ("fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma")]
             else:

@@ -67,7 +67,7 @@ class DesktopWidgetTests(unittest.TestCase):
         self.assertEqual(self.app.period.get(), "20")
         self.assertEqual(self.app.threshold.get(), "10")
         self.assertFalse(self.app.threshold_entry.instate(["disabled"]))
-        self.assertEqual(len(self.app.table["columns"]), 8)
+        self.assertEqual(len(self.app.table["columns"]), 7)
 
     def test_invalid_input_shows_dialog_without_starting_worker(self):
         self.app.data.set("Z:/stockstudy-nonexistent-test.zip")
@@ -140,7 +140,7 @@ class DesktopWidgetTests(unittest.TestCase):
         self.app.strategy_label.set(self.app.t("ma-cross"))
         self.app._strategy_changed()
         self.assertEqual(self.app.strategy_id, "ma-cross")
-        self.assertEqual(len(self.app.table["columns"]), 10)
+        self.assertEqual(len(self.app.table["columns"]), 9)
         self.assertTrue(self.app.trend_filter.get())
         self.app.trend_filter.set(False)
         self.app._trend_changed()
@@ -191,7 +191,6 @@ class DesktopWidgetTests(unittest.TestCase):
         rows = [row("sh", "600000"), row("sz", "000001"), row("bj", "920001", "unknown")]
         self.app.outcome = AnalysisOutcome({}, rows)
         self.app.market_label.set(self.app.t("market_bj"))
-        self.app.status_label.set(self.app.t("status_unknown"))
         with patch("stockstudy.windows.analyze") as analyze:
             self.app._filters_changed()
             self.assertEqual(len(self.app.table.get_children()), 1)
@@ -210,13 +209,11 @@ class DesktopWidgetTests(unittest.TestCase):
         rows = [row("sh", "600000"), row("sz", "000001"), row("bj", "920001", "unknown")]
         self.app.outcome = AnalysisOutcome({}, rows)
         self.app.result_market.set("bj")
-        self.app.result_status.set("unknown")
         self.app.search.set("920001")
         self.app.language.set("en")
         with patch.object(self.app, "_refresh_text"):
             self.app.switch_language()
         self.assertEqual(self.app.market_label.get(), "Beijing (bj)")
-        self.assertEqual(self.app.status_label.get(), "Unknown")
         self.assertEqual(len(self.app.table.get_children()), 1)
         with tempfile.TemporaryDirectory() as temp:
             with patch("stockstudy.windows.filedialog.askdirectory", return_value=temp), patch.object(self.app, "_refresh_text"):
@@ -224,4 +221,7 @@ class DesktopWidgetTests(unittest.TestCase):
             import json
             exported = json.loads((self.app.exported_path / "matches.json").read_text(encoding="utf-8"))
             self.assertEqual(exported, [rows[2]])
+            self.assertEqual(exported[0]["status"], "unknown")
+            self.assertNotIn("listing_status", self.app.table["columns"])
+            self.assertFalse(hasattr(self.app, "status_box"))
             self.assertEqual(self.app.exported_info, ("filtered", 1))
