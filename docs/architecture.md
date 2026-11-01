@@ -7,7 +7,7 @@
 | 模块 | 职责 |
 | --- | --- |
 | `models.py` | 证券、日线、命中记录、扫描结果 |
-| `strategies.py` | 区间涨幅、双均线金叉与可选趋势过滤，纯函数 |
+| `strategies.py` | 区间涨幅、双均线金叉及可选趋势过滤、放量突破，纯函数 |
 | `readers/base.py` | 数据源 Protocol |
 | `readers/tdx.py` | 本地 `.day` 与 ZIP 适配 |
 | `service.py` | 扫描协调、单股票错误隔离、数据日期过滤 |

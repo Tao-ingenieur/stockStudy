@@ -33,6 +33,12 @@ def prepare_report(
         if strategy.name == "gain":
             row.update(base_date=item.base_date.isoformat(), base_close=price(item.base_close),
                        gain_ratio=float(round(item.gain_ratio, 10)), gain_pct=float(round(item.gain_ratio * 100, 6)))
+        elif strategy.name == "breakout":
+            row.update(prior_high=price(item.prior_high), prior_high_date=item.prior_high_date.isoformat(),
+                       breakout_pct=float(round(item.breakout_ratio * 100, 6)), volume=item.volume,
+                       average_volume=float(round(item.average_volume, 6)), volume_ratio=float(round(item.volume_ratio, 6)),
+                       **{key: getattr(item, key).isoformat() for key in
+                          ("price_window_start", "price_window_end", "volume_window_start", "volume_window_end")})
         else:
             row.update(previous_date=item.previous_date.isoformat(),
                        **{key: format(getattr(item, key) / 100, ".6f") if getattr(item, key) is not None else ""
@@ -46,6 +52,7 @@ def prepare_report(
         "price_basis_note": "Unadjusted daily prices; corporate actions may affect returns and MA signals. Not exchange-published daily change.",
         "insufficient_history_count": len(result.insufficient_history),
         "insufficient_history": result.insufficient_history,
+        "invalid_volume_count": len(result.invalid_volume), "invalid_volume": result.invalid_volume,
         "invalid_close_count": len(result.invalid_close), "invalid_close": result.invalid_close,
         "required_latest_date": result.effective_date.isoformat() if result.effective_date else as_of, "securities_total": result.scanned + sum(
             e["kind"] == "read_error" for e in result.errors),
@@ -60,6 +67,11 @@ def prepare_report(
     if strategy.name == "gain":
         summary.update(period=strategy.period, gain_threshold_pct=str(strategy.gain_threshold * 100),
                        comparison="latest_close / close_N_records_earlier - 1 >= threshold")
+    elif strategy.name == "breakout":
+        summary.update(breakout_period=strategy.breakout_period, volume_period=strategy.volume_period,
+                       volume_multiple=str(strategy.volume_multiple),
+                       comparison="latest_close > max(previous_N_highs) and latest_volume >= volume_multiple * mean(previous_M_volumes)",
+                       windows_exclude_latest=True)
     else:
         summary.update(fast_period=strategy.fast_period, slow_period=strategy.slow_period,
                        trend_filter=strategy.trend_filter, trend_period=strategy.trend_period,
@@ -75,8 +87,11 @@ def export_report(rows: list[dict], summary: dict, output_dir: Path) -> Path:
     run_dir = output_dir / f"股票分析_{stamp}_{uuid4().hex[:12]}"
     run_dir.mkdir()
     columns = ["market", "code", "name", "board", "status", "date", "close"]
-    columns += (["previous_date", "fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma"]
-                if summary.get("strategy") == "ma-cross" else ["base_date", "base_close", "gain_ratio", "gain_pct"])
+    columns += {
+        "ma-cross": ["previous_date", "fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma"],
+        "breakout": ["prior_high", "prior_high_date", "breakout_pct", "volume", "average_volume", "volume_ratio",
+                     "price_window_start", "price_window_end", "volume_window_start", "volume_window_end"],
+    }.get(summary.get("strategy"), ["base_date", "base_close", "gain_ratio", "gain_pct"])
     columns += ["price_adjustment"]
     with (run_dir / "matches.csv").open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)

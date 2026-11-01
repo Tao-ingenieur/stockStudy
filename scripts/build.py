@@ -41,7 +41,8 @@ def build_cli(output_root: Path):
         staging = Path(temp)
         stage_package(staging)
         target = release / "股票分析.pyz"
-        zipapp.create_archive(staging, target, main="stockstudy.cli:main", compressed=True)
+        (staging / "__main__.py").write_text("from stockstudy.cli import main\nraise SystemExit(main())\n", encoding="utf-8")
+        zipapp.create_archive(staging, target, compressed=True)
     finish_release(release, target)
 
 

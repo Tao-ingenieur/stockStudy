@@ -3,7 +3,7 @@ from typing import Callable
 
 from .models import ScanResult
 from .readers.base import DailyBarSource
-from .strategies import Strategy, screen, valid_closes
+from .strategies import Strategy, screen, valid_closes, valid_volumes
 
 
 class ScanCancelled(Exception):
@@ -38,6 +38,8 @@ def scan(
                         result.insufficient_history.append(security.symbol)
                     elif not valid_closes(bars, strategy):
                         result.invalid_close.append(security.symbol)
+                    elif not valid_volumes(bars, strategy):
+                        result.invalid_volume.append(security.symbol)
                     else:
                         result.matches.extend(screen(security, bars, strategy))
                 else:
@@ -59,8 +61,9 @@ def scan(
         result.matches = [match for match in result.matches if match.security.symbol not in stale]
         result.insufficient_history = [symbol for symbol in result.insufficient_history if symbol not in stale]
         result.invalid_close = [symbol for symbol in result.invalid_close if symbol not in stale]
+        result.invalid_volume = [symbol for symbol in result.invalid_volume if symbol not in stale]
         result.errors.extend({"symbol": symbol, "kind": "date_mismatch",
                               "error": f"Latest record differs from dataset latest date {result.effective_date}"}
                              for symbol in sorted(stale))
-    result.matches.sort(key=lambda m: (-m.date.toordinal(), -(m.gain_ratio or 0), m.security.market, m.security.code))
+    result.matches.sort(key=lambda m: (-m.date.toordinal(), -(m.breakout_ratio if m.breakout_ratio is not None else m.gain_ratio or 0), m.security.market, m.security.code))
     return result

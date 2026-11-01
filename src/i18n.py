@@ -44,10 +44,7 @@ TEXT = {
     "end_date": ("截止日期", "End Date"), "close": ("收盘价", "Close"),
     "base_date": ("基准日期", "Base Date"), "base_close": ("基准收盘价", "Base Close"),
     "gain_column": ("涨幅", "Gain"),
-    "help_body": (
-        "1. 在分析设置中选择通达信 ZIP 或日线数据目录，可设置末条日期。上市状态仅作证券资料，不参与筛选。\n\n2. 从策略下拉框选择策略，下面的分析策略区域显示该策略的参数。区间涨幅默认比较20条记录前的收盘价，涨幅达到10%（大于等于）；N=1比较相邻两条记录。如需粗略筛选单日接近涨停的股票，可设置周期为1、涨幅阈值为9.9%。这只是涨幅筛选，并非精确涨停认定；不同板块的涨跌幅限制、价格取整和除权除息可能影响结果。\n\n3. 点击开始分析，结果显示在表格中。搜索只影响预览，最多显示2000条；导出包含全部结果。\n\n4. 分析不会自动保存文件。点击导出筛选结果或文件菜单中的导出全部结果并选择目录，生成 CSV、JSON 和汇总文件。关闭程序后未导出的结果不保留。\n\n5. 末条日期仅要求股票文件的最后一条记录恰为该日期，不是历史回放。留空使用行情数据中的最新交易日；末条记录早于该日的股票不参与筛选。\n\n6. 复权情况在结果摘要中显示。当前通达信日线未提供复权因子，分红送转可能影响价格比较。筛选结果不代表买入建议。",
-        "1. Choose a Tongdaxin ZIP or daily-bar folder in Analysis Settings. Optionally set a latest date. Listing status is reference metadata only and does not affect screening.\n\n2. Select a strategy from the dropdown. Its parameters appear in Analysis Strategy. Interval Gain defaults to a 20-record period and a gain of at least 10%. N=1 compares adjacent records. To roughly screen for one-day gains near a 10% limit, set period to 1 and threshold to 9.9%. This is a gain filter, not an exact limit-up test; board-specific limits, price rounding and corporate actions can affect results.\n\n3. Start analysis to populate the table. Search affects the preview only (up to 2,000 rows); export includes all results.\n\n4. Analysis does not save files automatically. Choose Export Filtered or File > Export All and a folder to create CSV, JSON and summary files. Unexported results are lost when the app closes.\n\n5. Latest date requires the final bar to match that date; it is not a historical replay. Blank uses the latest trading date in the market data; stocks whose final record is earlier are excluded. \n\n6. Adjustment availability appears in the result summary. Current Tongdaxin bars have no adjustment factors; corporate actions may distort price changes. Screening is not a buy recommendation."
-    ),
+
 }
 
 
@@ -68,10 +65,6 @@ TEXT.update({
     "trend_off": ("未启用趋势过滤", "trend filter disabled"),
 })
 TEXT["adjustment"] = ("复权情况：当前数据未提供复权因子，本次按不复权价格分析，分红送转可能影响价格比较和均线信号。", "Adjustment: no adjustment factors are available. Raw prices were used; corporate actions may affect price comparisons and MA signals.")
-TEXT["help_body"] = tuple(body + extra for body, extra in zip(TEXT["help_body"], (
-    "\n\n双均线金叉：默认5日均线上穿20日均线，上一条短线不高于长线、最新短线严格高于长线。默认勾选收盘价严格高于120日均线；可取消过滤或修改周期。仅金叉发生的最新记录命中，已维持多日的多头排列不算新金叉。开启默认过滤需120条日线，关闭时需21条。",
-    "\n\nMA Crossover: defaults to the 5-bar SMA crossing above the 20-bar SMA on the latest record. Previous fast SMA must be at or below slow SMA. Close above the 120-bar trend SMA is enabled by default and can be disabled. A continuing bullish alignment is not a new crossover. Default history required: 120 bars with the filter, 21 without it."
-)))
 
 
 TEXT.update({
@@ -89,12 +82,6 @@ TEXT.update({
     "exported_scope": ("最近导出：{scope}，{count:,} 条。目录：{path}", "Last export: {scope}, {count:,} rows. Folder: {path}"),
     "scope_filtered": ("筛选结果", "Filtered results"), "scope_all": ("全部结果", "All results"),
 })
-TEXT["help_body"] = tuple(body.replace(old, new) + extra for body, old, new, extra in zip(TEXT["help_body"],
-    ("搜索只影响预览，最多显示2000条；导出包含全部结果。", "Search affects the preview only (up to 2,000 rows); export includes all results."),
-    ("结果可按市场和关键词组合筛选，最多预览2000条。", "Combine market and keyword filters; the preview shows up to 2,000 rows."),
-    ("\n\n结果筛选不会重新扫描或修改原始结果。市场支持上海、深圳、北京及沪深。上市状态保留在导出文件中，界面暂不展示。重置筛选恢复全部结果。导出筛选结果保存所有符合条件的行；文件菜单中的导出全部结果不受筛选影响。汇总保留原始分析统计，并单独记录导出范围、导出条数和筛选条件。",
-     "\n\nResult filters do not rescan or modify the original results. Reset Filters restores all rows. Export Filtered saves all matching rows; File > Export All ignores result filters. Summaries retain original analysis statistics and separately record export scope, row count and filter criteria.")
-))
 
 
 TEXT.update({
@@ -107,10 +94,53 @@ TEXT.update({
     "board_other": ("其他 / 未识别", "Other / Unclassified"),
     "board_bj_all": ("北交所（不细分）", "Beijing (no subdivision)"),
 })
-TEXT["help_body"] = tuple(body + extra for body, extra in zip(TEXT["help_body"], (
-    "\n\n板块筛选随市场联动：上海为主板/科创板，深圳为主板/创业板（原中小板并入主板），北京在当前范围内不再细分。全部市场可直接选科创板、创业板等。切换市场时，不兼容的板块自动重置；重置筛选恢复全部。分类按支持的市场和代码规则推导，不代表上市状态，导出保留 board 字段和筛选条件。",
-    "\n\nBoard options follow the market: Shanghai Main/STAR, Shenzhen Main/ChiNext (former SME Board is included in Main), and no subdivision for Beijing. All Markets allows direct selection of any supported board. Incompatible selections reset when the market changes. Classification uses supported market/code rules, not listing-status verification. Exports retain board and filter criteria."
-)))
+
+
+TEXT.update({
+    "breakout": ("放量突破", "Volume Breakout"),
+    "breakout_period": ("价格窗口 N", "Price window N"),
+    "volume_period": ("均量窗口 M", "Volume window M"),
+    "volume_multiple": ("成交量倍数 ≥", "Volume multiple ≥"),
+    "breakout_rule": ("收盘价 > 前N条最高价，成交量 ≥ 前M条均量 × 倍数；两个窗口均不含当天。", "Close > highest high of prior N bars; volume ≥ mean volume of prior M bars × multiple. Both windows exclude today."),
+    "bad_breakout_parameters": ("价格和均量窗口须为正整数，成交量倍数须为正的有限数值。", "Price and volume windows must be positive integers; volume multiple must be finite and positive."),
+    "prior_high": ("前期最高价", "Prior high"),
+    "breakout_pct": ("突破幅度", "Breakout (%)"),
+    "volume": ("成交量（万股）", "Volume (10k shares)"),
+    "average_volume": ("历史均量（万股）", "Mean volume (10k shares)"),
+    "volume_ratio": ("成交量倍数", "Volume multiple"),
+    "breakout_result": ("突破前{price_period}条高点；成交量 ≥ 前{volume_period}条均量 × {multiple}。历史不足 {short}；日期不符 {dates}；无效价格 {invalid}；无效成交量 {volumes}。", "Prior {price_period}-bar high breakout; volume ≥ prior {volume_period}-bar mean × {multiple}. Short history {short}; date mismatch {dates}; invalid price {invalid}; invalid volume {volumes}."),
+})
+
+TEXT["help_body"] = (
+    "一、基本使用\n\n"
+    "选择通达信 ZIP 或日线目录，选择策略、填写参数后开始分析；扫描可取消。每只股票只检查最新一条记录，最多命中一条。\n\n"
+    "末条日期留空使用行情数据中的最新交易日；填写日期时，股票文件的末条记录必须恰为该日，不是历史回放。上市状态不参与筛选。\n\n"
+    "结果可按市场、板块和代码/名称/日期搜索；最多预览2000条，导出不受此限制。点击“导出筛选结果”保存匹配行；文件菜单的“导出全部结果”保存原始结果。取消选择不保存，关闭窗口前请导出需要保留的结果。\n\n"
+    "当前按不复权价格分析，分红送转可能影响结果。筛选结果不代表买入建议。\n\n"
+    "二、策略说明\n\n"
+    "2.1 区间涨幅\n"
+    "最新收盘价相对N条记录前的收盘价，涨幅大于等于阈值即命中。默认N=20、阈值10%，需21条记录。周期1、阈值9.9%可粗筛单日接近10%涨停的股票，不是精确涨停判断。\n\n"
+    "2.2 双均线金叉\n"
+    "上一条短均线≤长均线，最新短均线>长均线。默认5/20，且要求收盘价>120日均线；可取消趋势条件。默认需120条记录，取消后需21条。连续多日短线在长线上方不算新金叉。\n\n"
+    "2.3 放量突破\n"
+    "最新收盘价>此前N条记录的最高价，且成交量≥此前M条记录均量×倍数。默认N=20、M=5、倍数1.5，需21条记录；两个历史窗口均不含当天。\n"
+    "突破幅度是收盘价超过前期最高价的百分比，不是当日涨幅。成交量倍数不是盘中量比。不要求当天收阳线，也不要求首次突破。历史不足或均量为零时跳过。\n\n"
+    "所有周期按股票自身交易记录计数，不是自然日。",
+    "1. BASIC USE\n\n"
+    "Choose a Tongdaxin ZIP or daily-bar folder, select a strategy, set its parameters and start. Scans can be cancelled. Only each stock's latest bar is tested, with at most one match.\n\n"
+    "A blank latest date uses the latest trading date in the market data. A specified date must match the stock file's final bar; it is not a historical replay. Listing status does not affect screening.\n\n"
+    "Filter by market, board or code/name/date. The preview shows up to 2,000 rows; exports include every matching row. Export Filtered saves the subset; File > Export All saves original results. Cancelling the picker saves nothing. Export before closing to keep results.\n\n"
+    "Current data has no adjustment factors. Raw prices are used; corporate actions may affect results. Screening is not a buy recommendation.\n\n"
+    "2. STRATEGIES\n\n"
+    "2.1 Interval Gain\n"
+    "Latest close versus the close N records earlier must gain at least the threshold. Defaults: N=20, threshold=10%, requiring 21 bars. Period 1 and 9.9% roughly screen one-day gains near a 10% limit, not exact limit-up status.\n\n"
+    "2.2 MA Crossover\n"
+    "Previous fast SMA≤slow SMA and latest fast SMA>slow SMA. Defaults: 5/20 with close>120-bar SMA. Disable the optional trend filter to require 21 bars instead of 120. A continuing bullish alignment is not a new crossover.\n\n"
+    "2.3 Volume Breakout\n"
+    "Latest close>highest high of the prior N bars, and volume≥mean volume of the prior M bars×multiple. Defaults: N=20, M=5, multiple=1.5, requiring 21 bars. Both history windows exclude today.\n"
+    "Breakout percentage measures close versus the prior high, not the one-day gain. Volume multiple is not an intraday volume ratio. A bullish candle or first breakout is not required. Short history or zero mean volume is skipped.\n\n"
+    "All periods count each stock's trading records, not calendar days."
+)
 
 
 def translate(language, key, **values):

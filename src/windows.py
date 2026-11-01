@@ -14,7 +14,7 @@ from .i18n import translate
 from .boards import BOARDS_BY_MARKET
 from .service import ScanCancelled
 
-STRATEGIES = {"gain": "gain", "ma-cross": "ma-cross"}
+STRATEGIES = {"gain": "gain", "ma-cross": "ma-cross", "breakout": "breakout"}
 
 
 class StockStudyApp:
@@ -44,6 +44,9 @@ class StockStudyApp:
         self.slow_period = tk.StringVar(value="20")
         self.trend_period = tk.StringVar(value="120")
         self.trend_filter = tk.BooleanVar(value=True)
+        self.breakout_period = tk.StringVar(value="20")
+        self.volume_period = tk.StringVar(value="5")
+        self.volume_multiple = tk.StringVar(value="1.5")
         self.as_of = tk.StringVar()
         self.result_market = tk.StringVar(value="all")
         self.result_board = tk.StringVar(value="all")
@@ -223,7 +226,7 @@ class StockStudyApp:
         for child in self.strategy_frame.winfo_children():
             child.destroy()
         # Each registered strategy owns its own parameter builder.
-        {"gain": self._build_gain_parameters, "ma-cross": self._build_ma_parameters}[self.strategy_id]()
+        {"gain": self._build_gain_parameters, "ma-cross": self._build_ma_parameters, "breakout": self._build_breakout_parameters}[self.strategy_id]()
 
     def _build_gain_parameters(self):
         row = ttk.Frame(self.strategy_frame)
@@ -237,6 +240,18 @@ class StockStudyApp:
         self.strategy_inputs = [self.period_entry, self.threshold_entry]
         ttk.Label(row, text=self.t("period_hint"), style="Muted.TLabel").pack(side="left")
         ttk.Label(self.strategy_frame, text=self.t("rule"), style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(7, 0))
+
+    def _build_breakout_parameters(self):
+        row = ttk.Frame(self.strategy_frame)
+        row.pack(fill="x")
+        self.strategy_inputs = []
+        for key, variable in (("breakout_period", self.breakout_period), ("volume_period", self.volume_period),
+                              ("volume_multiple", self.volume_multiple)):
+            ttk.Label(row, text=self.t(key)).pack(side="left")
+            entry = ttk.Entry(row, textvariable=variable, width=7)
+            entry.pack(side="left", padx=(8, 18))
+            self.strategy_inputs.append(entry)
+        ttk.Label(self.strategy_frame, text=self.t("breakout_rule"), style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(7, 0))
 
     def _build_ma_parameters(self):
         row = ttk.Frame(self.strategy_frame)
@@ -265,8 +280,10 @@ class StockStudyApp:
         s = self.outcome.summary if self.outcome else {}
         mode = s.get("strategy", self.strategy_id)
         columns = ["symbol", "name", "end_date", "close"]
-        columns += (["fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma"]
-                    if mode == "ma-cross" else ["base_date", "base_close", "gain_column"])
+        columns += {
+            "ma-cross": ["fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma"],
+            "breakout": ["prior_high", "breakout_pct", "volume", "average_volume", "volume_ratio"],
+        }.get(mode, ["base_date", "base_close", "gain_column"])
         self.table.configure(columns=columns)
         for column in columns:
             if column in {"fast_ma", "previous_fast_ma"}:
@@ -302,6 +319,9 @@ class StockStudyApp:
         if s.get("strategy") == "ma-cross":
             trend = self.t("trend_on", period=s["trend_period"]) if s["trend_filter"] else self.t("trend_off")
             detail = self.t("ma_result", fast=s["fast_period"], slow=s["slow_period"], trend=trend, **common)
+        elif s.get("strategy") == "breakout":
+            detail = self.t("breakout_result", price_period=s["breakout_period"], volume_period=s["volume_period"],
+                            multiple=s["volume_multiple"], volumes=s["invalid_volume_count"], **common)
         else:
             detail = self.t("result_summary", period=s["period"], threshold=s["gain_threshold_pct"], **common)
         detail += "\n" + self.t("adjustment")
@@ -348,7 +368,8 @@ class StockStudyApp:
                                    language=self.language.get(),
                                    strategy_name=self.strategy_id, fast_period=self.fast_period.get(),
                                    slow_period=self.slow_period.get(), trend_filter=self.trend_filter.get(),
-                                   trend_period=self.trend_period.get())
+                                   trend_period=self.trend_period.get(), breakout_period=self.breakout_period.get(),
+                                   volume_period=self.volume_period.get(), volume_multiple=self.volume_multiple.get())
         except ValueError as exc:
             messagebox.showerror(self.t("check"), str(exc), parent=self.root)
             return
@@ -464,6 +485,9 @@ class StockStudyApp:
             values = [row["market"] + row["code"], row["name"] or "—", row["date"], row["close"]]
             if self.outcome.summary.get("strategy") == "ma-cross":
                 values += [row[key] or "—" for key in ("fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma")]
+            elif self.outcome.summary.get("strategy") == "breakout":
+                values += [row["prior_high"], f"{row['breakout_pct']:.4f}%", f"{row['volume'] / 10000:.2f}",
+                           f"{row['average_volume'] / 10000:.2f}", f"{row['volume_ratio']:.4f}"]
             else:
                 values += [row["base_date"], row["base_close"], f"{row['gain_pct']:.4f}%"]
             self.table.insert("", "end", values=values, tags=("alternate",) if i % 2 else ())

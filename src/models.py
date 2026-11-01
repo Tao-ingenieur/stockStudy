@@ -47,6 +47,16 @@ class Match:
     previous_fast_ma: Decimal | None = None
     previous_slow_ma: Decimal | None = None
     trend_ma: Decimal | None = None
+    prior_high: int | None = None
+    prior_high_date: date | None = None
+    breakout_ratio: Decimal | None = None
+    volume: int | None = None
+    average_volume: Decimal | None = None
+    volume_ratio: Decimal | None = None
+    price_window_start: date | None = None
+    price_window_end: date | None = None
+    volume_window_start: date | None = None
+    volume_window_end: date | None = None
 
 
 @dataclass(slots=True)
@@ -58,4 +68,5 @@ class ScanResult:
     empty: int = 0
     insufficient_history: list[str] = field(default_factory=list)
     invalid_close: list[str] = field(default_factory=list)
+    invalid_volume: list[str] = field(default_factory=list)
     dates: dict[Security, date] = field(default_factory=dict)
