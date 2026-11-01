@@ -38,9 +38,15 @@ class Match:
     security: Security
     date: date
     close: int
-    base_date: date
-    base_close: int
-    gain_ratio: Decimal
+    base_date: date | None = None
+    base_close: int | None = None
+    gain_ratio: Decimal | None = None
+    previous_date: date | None = None
+    fast_ma: Decimal | None = None
+    slow_ma: Decimal | None = None
+    previous_fast_ma: Decimal | None = None
+    previous_slow_ma: Decimal | None = None
+    trend_ma: Decimal | None = None
 
 
 @dataclass(slots=True)

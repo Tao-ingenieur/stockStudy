@@ -28,16 +28,21 @@ class AnalysisOutcome:
     rows: list[dict]
 
 
-def make_request(data, period, threshold, as_of, include_delisted=False, language="zh") -> AnalysisRequest:
+def make_request(data, period, threshold, as_of, include_delisted=False, language="zh",
+                 strategy_name="gain", fast_period="5", slow_period="20", trend_filter=True, trend_period="120") -> AnalysisRequest:
     if not data.strip():
         raise ValueError(translate(language, "missing_data"))
     data_path = Path(data.strip().strip('"')).expanduser().resolve()
     if not data_path.exists():
         raise ValueError(translate(language, "bad_path", path=data_path))
     try:
-        strategy = Strategy(period=int(period), gain_threshold=Decimal(threshold) / 100)
+        if strategy_name == "ma-cross":
+            strategy = Strategy(name=strategy_name, fast_period=int(fast_period), slow_period=int(slow_period),
+                                trend_filter=trend_filter, trend_period=int(trend_period) if trend_filter else 120)
+        else:
+            strategy = Strategy(name=strategy_name, period=int(period), gain_threshold=Decimal(threshold) / 100)
     except (ValueError, InvalidOperation):
-        raise ValueError(translate(language, "bad_parameters")) from None
+        raise ValueError(translate(language, "bad_ma_parameters" if strategy_name == "ma-cross" else "bad_parameters")) from None
     try:
         day = date.fromisoformat(as_of.strip()) if as_of.strip() else None
     except ValueError:

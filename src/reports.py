@@ -22,23 +22,26 @@ def prepare_report(
     rows = []
     for item in result.matches:
         info = security_info.get(item.security) if security_info is not None else None
-        rows.append({
+        row = {
             "market": item.security.market, "code": item.security.code,
             "name": names.get(item.security, ""), "date": item.date.isoformat(),
             "status": info.status if info is not None else "unknown",
-            "close": price(item.close), "base_date": item.base_date.isoformat(),
-            "base_close": price(item.base_close), "gain_ratio": float(round(item.gain_ratio, 10)),
-            "gain_pct": float(round(item.gain_ratio * 100, 6)),
-            "price_adjustment": "unadjusted",
-        })
+            "close": price(item.close), "price_adjustment": "unadjusted",
+        }
+        if strategy.name == "gain":
+            row.update(base_date=item.base_date.isoformat(), base_close=price(item.base_close),
+                       gain_ratio=float(round(item.gain_ratio, 10)), gain_pct=float(round(item.gain_ratio * 100, 6)))
+        else:
+            row.update(previous_date=item.previous_date.isoformat(),
+                       **{key: format(getattr(item, key) / 100, ".6f") if getattr(item, key) is not None else ""
+                          for key in ("fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma")})
+        rows.append(row)
     summary = {
         "version": __version__, "created_at": datetime.now(timezone.utc).isoformat(),
         "source": source_name, "data_path": str(data_path.resolve()),
         "price_adjustment": "unadjusted", "volume_unit": "shares", "price_unit": "CNY",
-        "strategy": strategy.name, "period": strategy.period,
-        "gain_threshold_pct": str(strategy.gain_threshold * 100),
-        "comparison": "latest_close / close_N_records_earlier - 1 > threshold",
-        "price_basis_note": "Unadjusted close-to-close change; corporate actions may distort returns. Not exchange-published daily change.",
+        "strategy": strategy.name, "required_bars": strategy.required_bars,
+        "price_basis_note": "Unadjusted daily prices; corporate actions may affect returns and MA signals. Not exchange-published daily change.",
         "insufficient_history_count": len(result.insufficient_history),
         "insufficient_history": result.insufficient_history,
         "invalid_close_count": len(result.invalid_close), "invalid_close": result.invalid_close,
@@ -56,6 +59,14 @@ def prepare_report(
         "unknown_listing_status": result.unknown_status,
         "errors": result.errors,
     }
+    if strategy.name == "gain":
+        summary.update(period=strategy.period, gain_threshold_pct=str(strategy.gain_threshold * 100),
+                       comparison="latest_close / close_N_records_earlier - 1 > threshold")
+    else:
+        summary.update(fast_period=strategy.fast_period, slow_period=strategy.slow_period,
+                       trend_filter=strategy.trend_filter, trend_period=strategy.trend_period,
+                       comparison="previous_fast_ma <= previous_slow_ma and fast_ma > slow_ma",
+                       trend_comparison="close > trend_ma" if strategy.trend_filter else "disabled")
     return rows, summary
 
 
@@ -65,8 +76,10 @@ def export_report(rows: list[dict], summary: dict, output_dir: Path) -> Path:
     stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
     run_dir = output_dir / f"股票分析_{stamp}_{uuid4().hex[:12]}"
     run_dir.mkdir()
-    columns = ["market", "code", "name", "status", "date", "close", "base_date",
-               "base_close", "gain_ratio", "gain_pct", "price_adjustment"]
+    columns = ["market", "code", "name", "status", "date", "close"]
+    columns += (["previous_date", "fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma"]
+                if summary.get("strategy") == "ma-cross" else ["base_date", "base_close", "gain_ratio", "gain_pct"])
+    columns += ["price_adjustment"]
     with (run_dir / "matches.csv").open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)
         writer.writeheader()

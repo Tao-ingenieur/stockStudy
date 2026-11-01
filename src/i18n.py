@@ -52,5 +52,28 @@ TEXT = {
 }
 
 
+TEXT.update({
+    "ma-cross": ("双均线金叉", "MA Crossover"),
+    "fast_period": ("短期均线", "Fast MA"), "slow_period": ("长期均线", "Slow MA"),
+    "trend_filter": ("收盘价高于趋势均线", "Close above trend MA"),
+    "trend_period": ("趋势均线周期", "Trend period"),
+    "ma_rule": ("上一条短均线 ≤ 长均线，最新短均线 > 长均线；勾选趋势过滤时还需最新收盘价 > 趋势均线。", "Previous fast MA ≤ slow MA; latest fast MA > slow MA. With the trend filter, latest close must also be above the trend MA."),
+    "ma_hint": ("默认5/20日金叉，趋势过滤默认120日；历史不足则跳过。", "Defaults: 5/20 crossover with a 120-bar trend filter. Insufficient history is skipped."),
+    "bad_ma_parameters": ("均线周期须为正整数，短期必须小于长期；趋势过滤开启时须提供正整数周期。", "MA periods must be positive integers with fast < slow; an enabled trend filter requires a positive period."),
+    "fast_ma": ("MA{period}", "MA{period}"), "slow_ma": ("MA{period}", "MA{period}"),
+    "trend_ma": ("趋势MA{period}", "Trend MA{period}"),
+    "previous_fast_ma": ("上条MA{period}", "Previous MA{period}"),
+    "previous_slow_ma": ("上条MA{period}", "Previous MA{period}"),
+    "ma_result": ("MA{fast} 上穿 MA{slow}；{trend}。排除退市 {delisted}；状态未知 {unknown}；历史不足 {short}；日期不符 {dates}；无效收盘价 {invalid}。", "MA{fast} crossed above MA{slow}; {trend}. Delisted excluded {delisted}; unknown status {unknown}; insufficient history {short}; date mismatch {dates}; invalid close {invalid}."),
+    "trend_on": ("要求收盘价 > MA{period}", "close > MA{period} required"),
+    "trend_off": ("未启用趋势过滤", "trend filter disabled"),
+})
+TEXT["adjustment"] = ("复权情况：当前数据未提供复权因子，本次按不复权价格分析，分红送转可能影响价格比较和均线信号。", "Adjustment: no adjustment factors are available. Raw prices were used; corporate actions may affect price comparisons and MA signals.")
+TEXT["help_body"] = tuple(body + extra for body, extra in zip(TEXT["help_body"], (
+    "\n\n双均线金叉：默认5日均线上穿20日均线，上一条短线不高于长线、最新短线严格高于长线。默认勾选收盘价严格高于120日均线；可取消过滤或修改周期。仅金叉发生的最新记录命中，已维持多日的多头排列不算新金叉。开启默认过滤需120条日线，关闭时需21条。",
+    "\n\nMA Crossover: defaults to the 5-bar SMA crossing above the 20-bar SMA on the latest record. Previous fast SMA must be at or below slow SMA. Close above the 120-bar trend SMA is enabled by default and can be disabled. A continuing bullish alignment is not a new crossover. Default history required: 120 bars with the filter, 21 without it."
+)))
+
+
 def translate(language, key, **values):
     return TEXT[key][language == "en"].format(**values)

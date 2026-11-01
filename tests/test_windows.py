@@ -135,3 +135,52 @@ class DesktopWidgetTests(unittest.TestCase):
         self.app.language.set("zh")
         self.app.switch_language()
         self.assertEqual(self.app.results_frame.cget("text"), "分析结果")
+
+    def test_ma_strategy_switch_and_language_preserve_parameters(self):
+        self.app.strategy_label.set(self.app.t("ma-cross"))
+        self.app._strategy_changed()
+        self.assertEqual(self.app.strategy_id, "ma-cross")
+        self.assertEqual(len(self.app.table["columns"]), 9)
+        self.assertTrue(self.app.trend_filter.get())
+        self.app.trend_filter.set(False)
+        self.app._trend_changed()
+        self.assertTrue(self.app.trend_entry.instate(["disabled"]))
+        self.app.fast_period.set("10")
+        self.app.language.set("en")
+        self.app.switch_language()
+        self.assertEqual(self.app.fast_period.get(), "10")
+        self.assertFalse(self.app.trend_filter.get())
+        self.assertTrue(self.app.trend_entry.instate(["disabled"]))
+        self.assertEqual(self.app.strategy_label.get(), "MA Crossover")
+
+    def test_real_ma_analysis_shows_ma_columns_and_exports(self):
+        from datetime import date, timedelta
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            data = directory / "sh/lday/sh688001.day"
+            data.parent.mkdir(parents=True)
+            start = date(2026, 10, 30) - timedelta(days=119)
+            data.write_bytes(b"".join(record(int((start + timedelta(days=i)).strftime("%Y%m%d")),
+                                            low=1100 if i == 119 else 1000,
+                                            high=1100 if i == 119 else 1000) for i in range(120)))
+            request = make_request(str(directory / "sh"), "unused", "unused", "2026-10-30", strategy_name="ma-cross")
+            outcome = analyze(request)
+            self.assertEqual(outcome.summary["matches"], 1)
+            self.assertEqual(outcome.summary["required_bars"], 120)
+            self.app.outcome = outcome
+            self.app._refresh_text()
+            self.app._render_rows()
+            self.assertIn("trend_ma", self.app.table["columns"])
+            self.assertIn("MA120", self.app.detail.get())
+            exported = export_analysis(outcome, directory / "exports")
+            import csv
+            with (exported / "matches.csv").open(encoding="utf-8-sig", newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertIn("previous_fast_ma", rows[0])
+            self.assertNotIn("gain_pct", rows[0])
+            self.app.strategy_label.set(self.app.t("ma-cross"))
+            self.app._strategy_changed()
+            self.app.strategy_label.set(self.app.t("gain"))
+            self.app._strategy_changed()
+            self.assertIn("trend_ma", self.app.table["columns"])
+            self.assertIs(self.app.outcome, outcome)

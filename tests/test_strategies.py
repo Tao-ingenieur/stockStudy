@@ -43,6 +43,41 @@ class StrategyTests(unittest.TestCase):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 Strategy(**kwargs)
 
+    def test_latest_crossover_from_equality_and_not_persistent_alignment(self):
+        strategy = Strategy(name="ma-cross", trend_filter=False)
+        match = screen(self.security, bars(*([1000] * 20 + [1100])), strategy)[0]
+        self.assertEqual(match.previous_fast_ma, match.previous_slow_ma)
+        self.assertGreater(match.fast_ma, match.slow_ma)
+        self.assertIsNone(match.trend_ma)
+        self.assertEqual(screen(self.security, bars(*([1000] * 19 + [1100, 1200])), strategy), [])
+        self.assertEqual(screen(self.security, bars(*([1000] * 21)), strategy), [])
+
+    def test_trend_filter_is_optional_and_requires_full_history(self):
+        data = bars(*([2000] * 99 + [1000] * 20 + [1100]))
+        self.assertEqual(screen(self.security, data, Strategy(name="ma-cross")), [])
+        self.assertEqual(len(screen(self.security, data, Strategy(name="ma-cross", trend_filter=False))), 1)
+        self.assertEqual(Strategy(name="ma-cross").required_bars, 120)
+        self.assertEqual(Strategy(name="ma-cross", trend_filter=False).required_bars, 21)
+        self.assertEqual(screen(self.security, data[-21:], Strategy(name="ma-cross")), [])
+        self.assertEqual(len(screen(self.security, bars(*([1000] * 119 + [1100])), Strategy(name="ma-cross"))), 1)
+
+    def test_trend_equality_is_excluded_without_rounding(self):
+        data = [1120] * 98 + [1140] + [1000] * 20 + [1100]
+        self.assertEqual(sum(data), 1100 * 120)
+        self.assertEqual(screen(self.security, bars(*data), Strategy(name="ma-cross")), [])
+        data[-1] = 1101
+        self.assertEqual(len(screen(self.security, bars(*data), Strategy(name="ma-cross"))), 1)
+
+    def test_ma_windows_with_zero_close_and_invalid_periods(self):
+        data = [1000] * 119 + [1100]
+        data[50] = 0
+        self.assertEqual(screen(self.security, bars(*data), Strategy(name="ma-cross")), [])
+        for kwargs in ({"fast_period": 0}, {"fast_period": 20, "slow_period": 20},
+                       {"fast_period": 21}, {"trend_period": 0}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                Strategy(name="ma-cross", **kwargs)
+        self.assertEqual(Strategy(name="ma-cross", slow_period=150).required_bars, 151)
+
 
 if __name__ == "__main__":
     unittest.main()

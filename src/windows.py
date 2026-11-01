@@ -13,7 +13,7 @@ from .cli import find_workspace
 from .i18n import translate
 from .service import ScanCancelled
 
-STRATEGIES = {"gain": "gain"}
+STRATEGIES = {"gain": "gain", "ma-cross": "ma-cross"}
 
 
 class StockStudyApp:
@@ -38,6 +38,10 @@ class StockStudyApp:
         self.data = tk.StringVar(value=str(self.workspace / "stock_data/tongdaxin/hsjday.zip"))
         self.period = tk.StringVar(value="20")
         self.threshold = tk.StringVar(value="10")
+        self.fast_period = tk.StringVar(value="5")
+        self.slow_period = tk.StringVar(value="20")
+        self.trend_period = tk.StringVar(value="120")
+        self.trend_filter = tk.BooleanVar(value=True)
         self.as_of = tk.StringVar()
         self.exclude_delisted = tk.BooleanVar(value=True)
         self.search = tk.StringVar()
@@ -181,11 +185,7 @@ class StockStudyApp:
         footer.bind("<Configure>", lambda e: self.detail_label.configure(wraplength=max(300, e.width - 5)))
         table_frame = ttk.Frame(results)
         table_frame.pack(fill="both", expand=True)
-        columns = ("symbol", "name", "end_date", "close", "base_date", "base_close", "gain_column")
-        self.table = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
-        for column, width in zip(columns, (110, 140, 120, 100, 120, 115, 110)):
-            self.table.heading(column, text=self.t(column))
-            self.table.column(column, width=width, minwidth=80, anchor="w" if column == "name" else "center")
+        self.table = ttk.Treeview(table_frame, show="headings", selectmode="browse")
         vertical = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
         horizontal = ttk.Scrollbar(table_frame, orient="horizontal", command=self.table.xview)
         self.table.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
@@ -195,8 +195,8 @@ class StockStudyApp:
         vertical.grid(row=0, column=1, sticky="ns")
         horizontal.grid(row=1, column=0, sticky="ew")
         self.table.tag_configure("alternate", background="#f2f6fc")
-        self.inputs = [self.data_entry, self.zip_button, self.directory_button, self.period_entry,
-                       self.threshold_entry, self.date_entry, self.delisted_check]
+        self.inputs = [self.data_entry, self.zip_button, self.directory_button,
+                       self.date_entry, self.delisted_check] + self.strategy_inputs
         self._set_running(self.running)
         self._refresh_text()
         self._render_rows()
@@ -205,7 +205,7 @@ class StockStudyApp:
         for child in self.strategy_frame.winfo_children():
             child.destroy()
         # Each registered strategy owns its own parameter builder.
-        {"gain": self._build_gain_parameters}[self.strategy_id]()
+        {"gain": self._build_gain_parameters, "ma-cross": self._build_ma_parameters}[self.strategy_id]()
 
     def _build_gain_parameters(self):
         row = ttk.Frame(self.strategy_frame)
@@ -216,8 +216,50 @@ class StockStudyApp:
         ttk.Label(row, text=self.t("threshold")).pack(side="left")
         self.threshold_entry = ttk.Entry(row, textvariable=self.threshold, width=7)
         self.threshold_entry.pack(side="left", padx=(8, 20))
+        self.strategy_inputs = [self.period_entry, self.threshold_entry]
         ttk.Label(row, text=self.t("period_hint"), style="Muted.TLabel").pack(side="left")
         ttk.Label(self.strategy_frame, text=self.t("rule"), style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(7, 0))
+
+    def _build_ma_parameters(self):
+        row = ttk.Frame(self.strategy_frame)
+        row.pack(fill="x")
+        self.strategy_inputs = []
+        for key, variable in (("fast_period", self.fast_period), ("slow_period", self.slow_period)):
+            ttk.Label(row, text=self.t(key)).pack(side="left")
+            entry = ttk.Entry(row, textvariable=variable, width=6)
+            entry.pack(side="left", padx=(8, 18))
+            self.strategy_inputs.append(entry)
+        self.trend_check = ttk.Checkbutton(row, text=self.t("trend_filter"), variable=self.trend_filter,
+                                           command=self._trend_changed)
+        self.trend_check.pack(side="left", padx=(0, 12))
+        self.strategy_inputs.append(self.trend_check)
+        ttk.Label(row, text=self.t("trend_period")).pack(side="left")
+        self.trend_entry = ttk.Entry(row, textvariable=self.trend_period, width=6)
+        self.trend_entry.pack(side="left", padx=8)
+        self.strategy_inputs.append(self.trend_entry)
+        ttk.Label(self.strategy_frame, text=self.t("ma_hint"), style="Muted.TLabel").pack(anchor="w", pady=(6, 0))
+        ttk.Label(self.strategy_frame, text=self.t("ma_rule"), style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(4, 0))
+
+    def _trend_changed(self):
+        self.trend_entry.configure(state="normal" if self.trend_filter.get() and not self.running else "disabled")
+
+    def _result_columns(self):
+        s = self.outcome.summary if self.outcome else {}
+        mode = s.get("strategy", self.strategy_id)
+        columns = ["symbol", "name", "end_date", "close"]
+        columns += (["fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma"]
+                    if mode == "ma-cross" else ["base_date", "base_close", "gain_column"])
+        self.table.configure(columns=columns)
+        for column in columns:
+            if column in {"fast_ma", "previous_fast_ma"}:
+                period = s.get("fast_period", self.fast_period.get())
+            elif column in {"slow_ma", "previous_slow_ma"}:
+                period = s.get("slow_period", self.slow_period.get())
+            else:
+                period = s.get("trend_period", self.trend_period.get())
+            self.table.heading(column, text=self.t(column, period=period))
+            self.table.column(column, width=140 if column == "name" else 120, minwidth=85,
+                              anchor="w" if column == "name" else "center")
 
     def _strategy_changed(self, _event=None):
         labels = [self.t(label) for label in STRATEGIES.values()]
@@ -238,9 +280,13 @@ class StockStudyApp:
             return
         s = self.outcome.summary
         self.counts.set(self.t("stats", matches=s["matched_securities"], read=s["securities_read"], errors=s["read_errors"]))
-        detail = self.t("result_summary", period=s["period"], threshold=s["gain_threshold_pct"],
-                        delisted=s["delisted_excluded_count"], unknown=s["unknown_listing_status_count"],
-                        short=s["insufficient_history_count"], dates=s["date_mismatches"], invalid=s["invalid_close_count"])
+        common = dict(delisted=s["delisted_excluded_count"], unknown=s["unknown_listing_status_count"],
+                      short=s["insufficient_history_count"], dates=s["date_mismatches"], invalid=s["invalid_close_count"])
+        if s.get("strategy") == "ma-cross":
+            trend = self.t("trend_on", period=s["trend_period"]) if s["trend_filter"] else self.t("trend_off")
+            detail = self.t("ma_result", fast=s["fast_period"], slow=s["slow_period"], trend=trend, **common)
+        else:
+            detail = self.t("result_summary", period=s["period"], threshold=s["gain_threshold_pct"], **common)
         detail += "\n" + self.t("adjustment")
         detail += "\n" + (self.t("exported", path=self.exported_path) if self.exported_path else self.t("not_exported"))
         if self.phase == "cancelled":
@@ -270,6 +316,8 @@ class StockStudyApp:
         self.export_button.configure(state="normal" if self.outcome and not running else "disabled")
         for widget in self.inputs:
             widget.configure(state="disabled" if running else "normal")
+        if self.strategy_id == "ma-cross":
+            self._trend_changed()
         self.strategy_box.configure(state="disabled" if running else "readonly")
         self._menus()
 
@@ -278,7 +326,10 @@ class StockStudyApp:
             return
         try:
             request = make_request(self.data.get(), self.period.get(), self.threshold.get(), self.as_of.get(),
-                                   include_delisted=not self.exclude_delisted.get(), language=self.language.get())
+                                   include_delisted=not self.exclude_delisted.get(), language=self.language.get(),
+                                   strategy_name=self.strategy_id, fast_period=self.fast_period.get(),
+                                   slow_period=self.slow_period.get(), trend_filter=self.trend_filter.get(),
+                                   trend_period=self.trend_period.get())
         except ValueError as exc:
             messagebox.showerror(self.t("check"), str(exc), parent=self.root)
             return
@@ -345,6 +396,7 @@ class StockStudyApp:
             self.root.after_cancel(self.filter_after)
         self.filter_after = None
         self.table.delete(*self.table.get_children())
+        self._result_columns()
         if self.outcome is None:
             self.preview.set(self.t("preview_empty"))
             return
@@ -352,9 +404,12 @@ class StockStudyApp:
         rows = [row for row in self.outcome.rows if not term or term in " ".join(
             str(row[key]) for key in ("market", "code", "name", "date")).lower()]
         for i, row in enumerate(rows[:2000]):
-            self.table.insert("", "end", values=(row["market"] + row["code"], row["name"] or "—", row["date"],
-                row["close"], row["base_date"], row["base_close"], f"{row['gain_pct']:.4f}%"),
-                tags=("alternate",) if i % 2 else ())
+            values = [row["market"] + row["code"], row["name"] or "—", row["date"], row["close"]]
+            if self.outcome.summary.get("strategy") == "ma-cross":
+                values += [row[key] or "—" for key in ("fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma")]
+            else:
+                values += [row["base_date"], row["base_close"], f"{row['gain_pct']:.4f}%"]
+            self.table.insert("", "end", values=values, tags=("alternate",) if i % 2 else ())
         self.preview.set(self.t("preview", shown=min(len(rows), 2000), filtered=len(rows), total=len(self.outcome.rows)))
 
     def export_results(self):
