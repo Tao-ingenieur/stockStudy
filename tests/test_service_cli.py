@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from stockstudy.cli import main
@@ -31,6 +32,28 @@ class ServiceCliTests(unittest.TestCase):
         directory.mkdir(parents=True)
         (directory / "sh688001.day").write_bytes(gain_records())
         return directory
+
+    def test_blank_date_uses_common_dataset_latest_day(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            directory = self.make_data(root / "data")
+            # Both stocks pass the gain rule, but only one has the latest day.
+            (directory / "sh600001.day").write_bytes(gain_records()[:-32])
+            archive = root / "daily.zip"
+            with zipfile.ZipFile(archive, "w") as output:
+                for path in directory.glob("*.day"):
+                    output.write(path, "sh/lday/" + path.name)
+            for path in (root / "data", archive):
+                with TdxSource(path) as source:
+                    result = scan(source, Strategy(period=1, gain_threshold=Decimal(0)))
+                self.assertEqual(result.effective_date, date(2026, 10, 30))
+                self.assertEqual([m.security.code for m in result.matches], ["688001"])
+                self.assertEqual([e["kind"] for e in result.errors], ["date_mismatch"])
+                with TdxSource(path) as source:
+                    earlier = scan(source, Strategy(period=1, gain_threshold=Decimal(0)),
+                                   as_of=date(2026, 10, 29))
+                self.assertEqual([m.security.code for m in earlier.matches], ["600001"])
 
     def test_bad_file_isolated_and_as_of_exclusions_recorded(self):
         with tempfile.TemporaryDirectory() as temp:

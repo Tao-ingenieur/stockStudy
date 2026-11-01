@@ -22,12 +22,21 @@ def scan(
 ) -> ScanResult:
     """as_of requires each security's last record to have exactly that date."""
     result = ScanResult()
+    dataset_latest = None
     securities = source.securities()
     for index, security in enumerate(securities, start=1):
         if cancelled and cancelled():
             raise ScanCancelled()
         info = security_info.get(security) if security_info is not None else None
         if info and info.status == "delisted" and not include_delisted:
+            # The date belongs to the dataset, independently of listing filters.
+            if as_of is None:
+                try:
+                    tail = source.read_bars(security, 1)
+                    if tail:
+                        dataset_latest = max(dataset_latest or tail[-1].date, tail[-1].date)
+                except (OSError, ValueError, EOFError, RuntimeError):
+                    pass  # Excluded securities do not contribute read failures.
             result.delisted_excluded.append(security.symbol)
             if progress:
                 progress(index, len(securities))
@@ -40,6 +49,7 @@ def scan(
                 result.empty += 1
             else:
                 latest = bars[-1].date
+                dataset_latest = max(dataset_latest or latest, latest)
                 result.dates[security] = latest
                 if as_of is None or latest == as_of:
                     if len(bars) < strategy.required_bars:
@@ -59,5 +69,16 @@ def scan(
             result.errors.append({"symbol": security.symbol, "error": str(exc), "kind": "read_error"})
         if progress:
             progress(index, len(securities))
+    # Resolve the common date after reading, without decompressing the ZIP twice.
+    result.effective_date = as_of or dataset_latest
+    if as_of is None and result.effective_date is not None:
+        stale = {security.symbol for security, day in result.dates.items()
+                 if day != result.effective_date}
+        result.matches = [match for match in result.matches if match.security.symbol not in stale]
+        result.insufficient_history = [symbol for symbol in result.insufficient_history if symbol not in stale]
+        result.invalid_close = [symbol for symbol in result.invalid_close if symbol not in stale]
+        result.errors.extend({"symbol": symbol, "kind": "date_mismatch",
+                              "error": f"Latest record differs from dataset latest date {result.effective_date}"}
+                             for symbol in sorted(stale))
     result.matches.sort(key=lambda m: (-m.date.toordinal(), -(m.gain_ratio or 0), m.security.market, m.security.code))
     return result

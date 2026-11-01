@@ -47,7 +47,7 @@ def prepare_report(
         "insufficient_history_count": len(result.insufficient_history),
         "insufficient_history": result.insufficient_history,
         "invalid_close_count": len(result.invalid_close), "invalid_close": result.invalid_close,
-        "required_latest_date": as_of, "securities_total": result.scanned + sum(
+        "required_latest_date": result.effective_date.isoformat() if result.effective_date else as_of, "securities_total": result.scanned + sum(
             e["kind"] == "read_error" for e in result.errors) + len(result.delisted_excluded),
         "securities_read": result.scanned, "empty_files": result.empty,
         "matches": len(rows), "matched_securities": len({(r["market"], r["code"]) for r in rows}),

@@ -51,6 +51,7 @@ class Match:
 
 @dataclass(slots=True)
 class ScanResult:
+    effective_date: date | None = None
     matches: list[Match] = field(default_factory=list)
     errors: list[dict[str, str]] = field(default_factory=list)
     scanned: int = 0

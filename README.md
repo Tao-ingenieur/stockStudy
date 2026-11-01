@@ -191,7 +191,7 @@ python repo/stockstudy.py scan --strategy ma-cross --fast-period 10 --slow-perio
 
 ### 数据日期和边界
 
-默认采用各股票文件自身的最新记录，停牌股票的最后记录可能更早。`summary.json` 会记录最新日期分布。
+末条日期留空时，统一使用 ZIP 或数据目录中的最新交易日。末条记录早于该日的股票（例如停牌后未更新的股票）不参与筛选。`summary.json` 记录实际采用的日期及各股票末条日期分布。
 
 ```powershell
 python repo/stockstudy.py scan --as-of 2026-10-30
