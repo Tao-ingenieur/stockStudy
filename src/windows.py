@@ -14,7 +14,7 @@ from .i18n import translate
 from .boards import BOARDS_BY_MARKET
 from .service import ScanCancelled
 
-STRATEGIES = {"gain": "gain", "ma-cross": "ma-cross", "limit-up": "limit-up"}
+STRATEGIES = {"gain": "gain", "ma-cross": "ma-cross"}
 
 
 class StockStudyApp:
@@ -40,8 +40,6 @@ class StockStudyApp:
         self.data = tk.StringVar(value=str(self.workspace / "stock_data/tongdaxin/hsjday.zip"))
         self.period = tk.StringVar(value="20")
         self.threshold = tk.StringVar(value="10")
-        self.gain_comparison = tk.StringVar(value="ge")
-        self.limit_prices_path = tk.StringVar()
         self.fast_period = tk.StringVar(value="5")
         self.slow_period = tk.StringVar(value="20")
         self.trend_period = tk.StringVar(value="120")
@@ -228,7 +226,7 @@ class StockStudyApp:
         for child in self.strategy_frame.winfo_children():
             child.destroy()
         # Each registered strategy owns its own parameter builder.
-        {"gain": self._build_gain_parameters, "ma-cross": self._build_ma_parameters, "limit-up": self._build_limit_parameters}[self.strategy_id]()
+        {"gain": self._build_gain_parameters, "ma-cross": self._build_ma_parameters}[self.strategy_id]()
 
     def _build_gain_parameters(self):
         row = ttk.Frame(self.strategy_frame)
@@ -236,40 +234,12 @@ class StockStudyApp:
         ttk.Label(row, text=self.t("period")).pack(side="left")
         self.period_entry = ttk.Entry(row, textvariable=self.period, width=7)
         self.period_entry.pack(side="left", padx=(8, 20))
-        ttk.Label(row, text=self.t("comparison")).pack(side="left")
-        self.comparison_label = tk.StringVar(value=self.t("comparison_" + self.gain_comparison.get()))
-        self.comparison_box = ttk.Combobox(row, state="readonly", width=17, textvariable=self.comparison_label,
-                                          values=[self.t("comparison_" + key) for key in ("ge", "gt")])
-        self.comparison_box.pack(side="left", padx=(8, 16))
-        self.comparison_box.bind("<<ComboboxSelected>>", self._comparison_changed)
         ttk.Label(row, text=self.t("threshold")).pack(side="left")
         self.threshold_entry = ttk.Entry(row, textvariable=self.threshold, width=7)
         self.threshold_entry.pack(side="left", padx=(8, 20))
         self.strategy_inputs = [self.period_entry, self.threshold_entry]
-        ttk.Label(self.strategy_frame, text=self.t("period_hint"), style="Muted.TLabel").pack(anchor="w", pady=(6, 0))
-        self.gain_rule = tk.StringVar(value=self.t("rule", operator="≥" if self.gain_comparison.get() == "ge" else ">"))
-        ttk.Label(self.strategy_frame, textvariable=self.gain_rule, style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(7, 0))
-
-    def _comparison_changed(self, _event=None):
-        self.gain_comparison.set("ge" if self.comparison_label.get() == self.t("comparison_ge") else "gt")
-        self.gain_rule.set(self.t("rule", operator="≥" if self.gain_comparison.get() == "ge" else ">"))
-
-    def _build_limit_parameters(self):
-        row = ttk.Frame(self.strategy_frame)
-        row.pack(fill="x")
-        ttk.Label(row, text=self.t("limit_prices")).pack(side="left")
-        self.limit_entry = ttk.Entry(row, textvariable=self.limit_prices_path)
-        self.limit_entry.pack(side="left", fill="x", expand=True, padx=10)
-        self.limit_button = ttk.Button(row, text=self.t("choose_csv"), command=self._choose_limit_prices)
-        self.limit_button.pack(side="left")
-        self.strategy_inputs = [self.limit_entry, self.limit_button]
-        ttk.Label(self.strategy_frame, text=self.t("limit_hint"), style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(6, 0))
-        ttk.Label(self.strategy_frame, text=self.t("limit_rule"), style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(4, 0))
-
-    def _choose_limit_prices(self):
-        value = filedialog.askopenfilename(parent=self.root, title=self.t("limit_prices"), filetypes=[("CSV", "*.csv")])
-        if value:
-            self.limit_prices_path.set(value)
+        ttk.Label(row, text=self.t("period_hint"), style="Muted.TLabel").pack(side="left")
+        ttk.Label(self.strategy_frame, text=self.t("rule"), style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(7, 0))
 
     def _build_ma_parameters(self):
         row = ttk.Frame(self.strategy_frame)
@@ -299,7 +269,7 @@ class StockStudyApp:
         mode = s.get("strategy", self.strategy_id)
         columns = ["symbol", "name", "end_date", "close"]
         columns += (["fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma"]
-                    if mode == "ma-cross" else ["limit_up_price"] if mode == "limit-up" else ["base_date", "base_close", "gain_column"])
+                    if mode == "ma-cross" else ["base_date", "base_close", "gain_column"])
         self.table.configure(columns=columns)
         for column in columns:
             if column in {"fast_ma", "previous_fast_ma"}:
@@ -336,13 +306,9 @@ class StockStudyApp:
         if s.get("strategy") == "ma-cross":
             trend = self.t("trend_on", period=s["trend_period"]) if s["trend_filter"] else self.t("trend_off")
             detail = self.t("ma_result", fast=s["fast_period"], slow=s["slow_period"], trend=trend, **common)
-        elif s.get("strategy") == "limit-up":
-            detail = self.t("limit_summary", missing=s["missing_limit_price_count"], unlimited=s["unlimited_count"],
-                            conflicts=s["limit_data_errors"], **common)
         else:
-            detail = self.t("result_summary", period=s["period"], threshold=s["gain_threshold_pct"],
-                            operator="≥" if s.get("gain_comparison", "gt") == "ge" else ">", **common)
-        detail += "\n" + self.t("limit_basis" if s.get("strategy") == "limit-up" else "adjustment")
+            detail = self.t("result_summary", period=s["period"], threshold=s["gain_threshold_pct"], **common)
+        detail += "\n" + self.t("adjustment")
         detail += "\n" + (self.t("exported_scope", path=self.exported_path,
                                        scope=self.t("scope_" + self.exported_info[0]), count=self.exported_info[1])
                            if self.exported_path else self.t("not_exported"))
@@ -375,8 +341,6 @@ class StockStudyApp:
             widget.configure(state="disabled" if running else "normal")
         if self.strategy_id == "ma-cross":
             self._trend_changed()
-        if self.strategy_id == "gain":
-            self.comparison_box.configure(state="disabled" if running else "readonly")
         self.strategy_box.configure(state="disabled" if running else "readonly")
         self._menus()
 
@@ -388,8 +352,7 @@ class StockStudyApp:
                                    include_delisted=not self.exclude_delisted.get(), language=self.language.get(),
                                    strategy_name=self.strategy_id, fast_period=self.fast_period.get(),
                                    slow_period=self.slow_period.get(), trend_filter=self.trend_filter.get(),
-                                   trend_period=self.trend_period.get(), gain_comparison=self.gain_comparison.get(),
-                                   limit_prices_path=self.limit_prices_path.get())
+                                   trend_period=self.trend_period.get())
         except ValueError as exc:
             messagebox.showerror(self.t("check"), str(exc), parent=self.root)
             return
@@ -428,7 +391,7 @@ class StockStudyApp:
                         self.outcome = value
                         self.exported_path = None
                         self.exported_info = None
-                        self.phase = "partial" if (value.summary["read_errors"] or value.summary.get("missing_limit_price_count") or value.summary.get("limit_data_errors")) else "done"
+                        self.phase = "partial" if value.summary["read_errors"] else "done"
                         self.progress_value = 100
                         self.progress["value"] = 100
                         self._render_rows()
@@ -505,8 +468,6 @@ class StockStudyApp:
             values = [row["market"] + row["code"], row["name"] or "—", row["date"], row["close"]]
             if self.outcome.summary.get("strategy") == "ma-cross":
                 values += [row[key] or "—" for key in ("fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma")]
-            elif self.outcome.summary.get("strategy") == "limit-up":
-                values += [row["limit_up_price"]]
             else:
                 values += [row["base_date"], row["base_close"], f"{row['gain_pct']:.4f}%"]
             self.table.insert("", "end", values=values, tags=("alternate",) if i % 2 else ())

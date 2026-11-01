@@ -11,7 +11,6 @@ from .reports import prepare_report, export_report
 from .service import scan
 from .readers import SOURCE_FACTORIES, open_source
 from .strategies import Strategy
-from .limit_prices import load_limit_prices
 
 
 def find_workspace() -> Path:
@@ -39,11 +38,9 @@ def main(argv=None) -> int:
     command.add_argument("--workspace", type=Path, help="包含 stock_data/output 的工作区")
     command.add_argument("--source", choices=sorted(SOURCE_FACTORIES), default="tdx")
     command.add_argument("--data", type=Path, help="通达信 ZIP 或解压目录")
-    command.add_argument("--strategy", choices=["gain", "ma-cross", "limit-up"], default="gain")
+    command.add_argument("--strategy", choices=["gain", "ma-cross"], default="gain")
     command.add_argument("--period", type=positive_int, default=20, help="比较周期 N，按各股票交易记录计数；默认 20，需 N+1 条记录")
-    command.add_argument("--gain-threshold", default="10", help="涨幅阈值百分数；10 表示10%%，默认10")
-    command.add_argument("--gain-comparison", choices=["gt", "ge"], default="ge", help="gt 大于，ge 大于等于（默认）")
-    command.add_argument("--limit-prices", type=Path, help="收盘涨停策略必填：当日涨停价CSV，market,code,date,limit_up_price")
+    command.add_argument("--gain-threshold", default="10", help="涨幅大于等于此百分比；10 表示 10%%，默认 10")
     command.add_argument("--fast-period", type=positive_int, default=5, help="金叉短期均线周期，默认5")
     command.add_argument("--slow-period", type=positive_int, default=20, help="金叉长期均线周期，默认20")
     command.add_argument("--trend-period", type=positive_int, default=120, help="趋势过滤均线周期，默认120")
@@ -65,17 +62,11 @@ def main(argv=None) -> int:
     data_path = args.data or workspace / "stock_data" / "tongdaxin" / "hsjday.zip"
     output_dir = args.output_dir
     try:
-        book = None
-        if args.strategy == "limit-up":
-            if args.limit_prices is None:
-                raise ValueError("--limit-prices is required for limit-up; .day files do not supply daily limit prices")
-            book = load_limit_prices(args.limit_prices)
-            strategy = Strategy(name=args.strategy)
-        elif args.strategy == "ma-cross":
+        if args.strategy == "ma-cross":
             strategy = Strategy(name=args.strategy, fast_period=args.fast_period, slow_period=args.slow_period,
                                 trend_filter=not args.no_trend_filter, trend_period=args.trend_period)
         else:
-            strategy = Strategy(args.strategy, args.period, Decimal(args.gain_threshold) / 100, gain_comparison=args.gain_comparison)
+            strategy = Strategy(args.strategy, args.period, Decimal(args.gain_threshold) / 100)
         security_info = load_security_info(args.names)
         names = {security: info.name for security, info in security_info.items()}
         source = open_source(args.source, data_path)
@@ -84,14 +75,14 @@ def main(argv=None) -> int:
                 if not args.quiet and (done % 1000 == 0 or done == total):
                     print(f"Scanned {done}/{total}", file=sys.stderr)
             result = scan(source, strategy, as_of=args.as_of, progress=progress,
-                          security_info=security_info, include_delisted=args.include_delisted, limit_prices=book.entries if book else None)
+                          security_info=security_info, include_delisted=args.include_delisted)
         finally:
             source.close()
         rows, summary = prepare_report(
             result, strategy, names,
             source_name=args.source, data_path=data_path,
             as_of=args.as_of.isoformat() if args.as_of else None,
-            security_info=security_info, limit_price_book=book,
+            security_info=security_info,
         )
         report_dir = export_report(rows, summary, output_dir) if output_dir is not None else None
     except (OSError, ValueError, InvalidOperation, zipfile.BadZipFile, EOFError, RuntimeError) as exc:
@@ -102,11 +93,9 @@ def main(argv=None) -> int:
     print(f"Read {result.scanned}; matches {len(result.matches)}; read errors {failures}; date exclusions {exclusions}")
     print(f"Delisted excluded {len(result.delisted_excluded)}; unknown listing status {len(result.unknown_status)}")
     print(f"Insufficient history {len(result.insufficient_history)}; invalid close {len(result.invalid_close)}; price basis: unadjusted daily prices")
-    if args.strategy == "limit-up":
-        print(f"Missing limit prices {len(result.missing_limits)}; confirmed unlimited {len(result.unlimited)}; limit-data errors {summary['limit_data_errors']}")
     if report_dir is not None:
         print(f"Reports: {report_dir.resolve()}")
     else:
         print("Results were not saved. Use --output-dir to export CSV and JSON.")
     # Date exclusions are reported, but are not data read failures.
-    return 2 if failures or result.missing_limits or summary["limit_data_errors"] else 0
+    return 2 if failures else 0

@@ -13,7 +13,6 @@ from .service import ScanCancelled, scan
 from .strategies import Strategy
 from .i18n import translate
 from .boards import BOARD_FILTERS, board_for
-from .limit_prices import load_limit_prices
 
 
 @dataclass(frozen=True)
@@ -22,7 +21,6 @@ class AnalysisRequest:
     strategy: Strategy
     as_of: date | None = None
     include_delisted: bool = False
-    limit_prices_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -32,52 +30,42 @@ class AnalysisOutcome:
 
 
 def make_request(data, period, threshold, as_of, include_delisted=False, language="zh",
-                 strategy_name="gain", fast_period="5", slow_period="20", trend_filter=True, trend_period="120",
-                 gain_comparison="ge", limit_prices_path="") -> AnalysisRequest:
+                 strategy_name="gain", fast_period="5", slow_period="20", trend_filter=True, trend_period="120") -> AnalysisRequest:
     if not data.strip():
         raise ValueError(translate(language, "missing_data"))
     data_path = Path(data.strip().strip('"')).expanduser().resolve()
     if not data_path.exists():
         raise ValueError(translate(language, "bad_path", path=data_path))
     try:
-        if strategy_name == "limit-up":
-            strategy = Strategy(name=strategy_name)
-        elif strategy_name == "ma-cross":
+        if strategy_name == "ma-cross":
             strategy = Strategy(name=strategy_name, fast_period=int(fast_period), slow_period=int(slow_period),
                                 trend_filter=trend_filter, trend_period=int(trend_period) if trend_filter else 120)
         else:
-            strategy = Strategy(name=strategy_name, period=int(period), gain_threshold=Decimal(threshold) / 100, gain_comparison=gain_comparison)
+            strategy = Strategy(name=strategy_name, period=int(period), gain_threshold=Decimal(threshold) / 100)
     except (ValueError, InvalidOperation):
         raise ValueError(translate(language, "bad_ma_parameters" if strategy_name == "ma-cross" else "bad_parameters")) from None
     try:
         day = date.fromisoformat(as_of.strip()) if as_of.strip() else None
     except ValueError:
         raise ValueError(translate(language, "bad_date")) from None
-    limit_path = None
-    if strategy_name == "limit-up":
-        limit_path = Path(str(limit_prices_path).strip().strip('"')).expanduser().resolve() if str(limit_prices_path).strip() else None
-        if limit_path is None or not limit_path.is_file():
-            raise ValueError(translate(language, "need_limit_prices"))
-    return AnalysisRequest(data_path, strategy, day, include_delisted, limit_path)
+    return AnalysisRequest(data_path, strategy, day, include_delisted)
 
 
 def analyze(request: AnalysisRequest, *, progress: Callable[[int, int], None] | None = None,
             cancelled: Callable[[], bool] | None = None) -> AnalysisOutcome:
     security_info = load_security_info()
     names = {security: info.name for security, info in security_info.items()}
-    book = load_limit_prices(request.limit_prices_path) if request.strategy.name == "limit-up" else None
     source = open_source("tdx", request.data)
     try:
         result = scan(source, request.strategy, as_of=request.as_of, progress=progress, cancelled=cancelled,
-                      security_info=security_info, include_delisted=request.include_delisted,
-                      limit_prices=book.entries if book else None)
+                      security_info=security_info, include_delisted=request.include_delisted)
     finally:
         source.close()
     if cancelled and cancelled():
         raise ScanCancelled()
     rows, summary = prepare_report(result, request.strategy, names,
         source_name="tdx", data_path=request.data, as_of=request.as_of.isoformat() if request.as_of else None,
-        security_info=security_info, limit_price_book=book)
+        security_info=security_info)
     return AnalysisOutcome(summary, rows)
 
 

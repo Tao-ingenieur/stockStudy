@@ -12,25 +12,20 @@ class Strategy:
     period: int = 20
     gain_threshold: Decimal = Decimal("0.10")
 
-    gain_comparison: str = "ge"
     fast_period: int = 5
     slow_period: int = 20
     trend_filter: bool = True
     trend_period: int = 120
 
     def __post_init__(self) -> None:
-        if self.name not in {"gain", "ma-cross", "limit-up"}:
+        if self.name not in {"gain", "ma-cross"}:
             raise ValueError("Unknown strategy: " + self.name)
-        if self.name == "limit-up":
-            return
         if self.name == "ma-cross":
             if not 1 <= self.fast_period < self.slow_period:
                 raise ValueError("MA periods must satisfy 1 <= fast < slow")
             if self.trend_filter and self.trend_period < 1:
                 raise ValueError("trend period must be positive")
             return
-        if self.gain_comparison not in {"gt", "ge"}:
-            raise ValueError("gain comparison must be gt or ge")
         if self.period < 1:
             raise ValueError("period must be positive")
         if not self.gain_threshold.is_finite() or self.gain_threshold < 0:
@@ -38,21 +33,15 @@ class Strategy:
 
     @property
     def required_bars(self) -> int:
-        if self.name == "limit-up":
-            return 1
         if self.name == "ma-cross":
             return max(self.slow_period + 1, self.trend_period if self.trend_filter else 0)
         return self.period + 1
 
 
-def screen(security: Security, bars: list[DailyBar], strategy: Strategy, *, limit_up_price: int | None = None) -> list[Match]:
+def screen(security: Security, bars: list[DailyBar], strategy: Strategy) -> list[Match]:
     if len(bars) < strategy.required_bars:
         return []
     if not valid_closes(bars, strategy):
-        return []
-    if strategy.name == "limit-up":
-        if limit_up_price is not None and bars[-1].close == limit_up_price:
-            return [Match(security, bars[-1].date, bars[-1].close, limit_up_price=limit_up_price)]
         return []
     if strategy.name == "ma-cross":
         return screen_ma_cross(security, bars, strategy)
@@ -60,8 +49,7 @@ def screen(security: Security, bars: list[DailyBar], strategy: Strategy, *, limi
     if latest.close <= 0 or base.close <= 0:
         return []
     # Compare integer-cent changes before rounding the displayed percentage.
-    change, threshold = Decimal(latest.close - base.close), strategy.gain_threshold * base.close
-    if (change >= threshold if strategy.gain_comparison == "ge" else change > threshold):
+    if Decimal(latest.close - base.close) >= strategy.gain_threshold * base.close:
         return [Match(security, latest.date, latest.close, base.date, base.close,
                       Decimal(latest.close - base.close) / base.close)]
     return []

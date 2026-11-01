@@ -64,6 +64,8 @@ class DesktopWidgetTests(unittest.TestCase):
         self.root.destroy()
 
     def test_strategy_controls_and_defaults(self):
+        self.assertFalse(hasattr(self.app, "comparison_box"))
+        self.assertIn("9.9%", self.app.t("help_body"))
         self.assertEqual(self.app.period.get(), "20")
         self.assertEqual(self.app.threshold.get(), "10")
         self.assertFalse(self.app.threshold_entry.instate(["disabled"]))
@@ -262,34 +264,3 @@ class DesktopWidgetTests(unittest.TestCase):
         self.assertEqual(self.app.result_board.get(), "chinext")
         self.assertEqual(self.app._filtered_rows(), [rows[1]])
         self.assertEqual(len(self.app.outcome.rows), 2)
-
-    def test_gain_comparison_and_limit_strategy_controls(self):
-        self.assertEqual(self.app.gain_comparison.get(), "ge")
-        self.app.comparison_label.set(self.app.t("comparison_gt"))
-        self.app._comparison_changed()
-        self.assertEqual(self.app.gain_comparison.get(), "gt")
-        self.app.strategy_label.set(self.app.t("limit-up"))
-        self.app._strategy_changed()
-        self.assertIn("limit_up_price", self.app.table["columns"])
-        self.assertTrue(hasattr(self.app, "limit_entry"))
-        self.app.language.set("en")
-        self.app.switch_language()
-        self.assertEqual(self.app.strategy_label.get(), "Close at Limit Up")
-        self.assertEqual(self.app.gain_comparison.get(), "gt")
-
-    def test_limit_results_summary_and_price_column(self):
-        with tempfile.TemporaryDirectory() as temp:
-            directory = Path(temp)
-            data = directory / "sh/lday/sh688001.day"
-            data.parent.mkdir(parents=True)
-            data.write_bytes(record(low=1399, high=1400))
-            prices = directory / "limits.csv"
-            prices.write_text("market,code,date,limit_up_price\nsh,688001,2026-10-30,14.00\n", encoding="utf-8")
-            request = make_request(str(directory / "sh"), "", "", "", strategy_name="limit-up", limit_prices_path=prices)
-            self.app.outcome = analyze(request)
-            self.app._render_rows()
-            self.app._refresh_text()
-            self.assertIn("limit_up_price", self.app.table["columns"])
-            self.assertEqual(len(self.app.table.get_children()), 1)
-            self.assertIn("无需复权", self.app.detail.get())
-            self.assertEqual(self.app.outcome.summary["missing_limit_price_count"], 0)

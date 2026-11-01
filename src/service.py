@@ -19,11 +19,8 @@ def scan(
     cancelled: Callable[[], bool] | None = None,
     security_info: dict[Security, SecurityInfo] | None = None,
     include_delisted: bool = False,
-    limit_prices: dict[tuple[Security, date], int | None] | None = None,
 ) -> ScanResult:
     """as_of requires each security's last record to have exactly that date."""
-    if strategy.name == "limit-up" and limit_prices is None:
-        raise ValueError("The limit-up strategy requires verified daily upper-limit prices")
     result = ScanResult()
     securities = source.securities()
     for index, security in enumerate(securities, start=1):
@@ -49,17 +46,6 @@ def scan(
                         result.insufficient_history.append(security.symbol)
                     elif not valid_closes(bars, strategy):
                         result.invalid_close.append(security.symbol)
-                    elif strategy.name == "limit-up":
-                        key = security, latest
-                        if key not in limit_prices:
-                            result.missing_limits.append(security.symbol)
-                        elif limit_prices[key] is None:
-                            result.unlimited.append(security.symbol)
-                        elif bars[-1].high > limit_prices[key]:
-                            result.errors.append({"symbol": security.symbol, "kind": "limit_data_error",
-                                                  "error": f"Daily high exceeds supplied limit price on {latest}"})
-                        else:
-                            result.matches.extend(screen(security, bars, strategy, limit_up_price=limit_prices[key]))
                     else:
                         result.matches.extend(screen(security, bars, strategy))
                 else:

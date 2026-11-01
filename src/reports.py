@@ -9,7 +9,6 @@ from . import __version__
 from .models import ScanResult, Security, SecurityInfo
 from .strategies import Strategy
 from .boards import board_for
-from .limit_prices import LimitPriceBook
 
 
 def price(cents: int | None) -> str:
@@ -20,7 +19,6 @@ def prepare_report(
     result: ScanResult, strategy: Strategy, names: dict[Security, str],
     *, source_name: str, data_path: Path, as_of: str | None,
     security_info: dict[Security, SecurityInfo] | None = None,
-    limit_price_book: LimitPriceBook | None = None,
 ) -> tuple[list[dict], dict]:
     rows = []
     for item in result.matches:
@@ -35,8 +33,6 @@ def prepare_report(
         if strategy.name == "gain":
             row.update(base_date=item.base_date.isoformat(), base_close=price(item.base_close),
                        gain_ratio=float(round(item.gain_ratio, 10)), gain_pct=float(round(item.gain_ratio * 100, 6)))
-        elif strategy.name == "limit-up":
-            row.update(limit_up_price=price(item.limit_up_price))
         else:
             row.update(previous_date=item.previous_date.isoformat(),
                        **{key: format(getattr(item, key) / 100, ".6f") if getattr(item, key) is not None else ""
@@ -50,9 +46,6 @@ def prepare_report(
         "price_basis_note": "Unadjusted daily prices; corporate actions may affect returns and MA signals. Not exchange-published daily change.",
         "insufficient_history_count": len(result.insufficient_history),
         "insufficient_history": result.insufficient_history,
-        "missing_limit_price_count": len(result.missing_limits), "missing_limit_prices": result.missing_limits,
-        "unlimited_count": len(result.unlimited), "unlimited": result.unlimited,
-        "limit_data_errors": sum(e["kind"] == "limit_data_error" for e in result.errors),
         "invalid_close_count": len(result.invalid_close), "invalid_close": result.invalid_close,
         "required_latest_date": as_of, "securities_total": result.scanned + sum(
             e["kind"] == "read_error" for e in result.errors) + len(result.delisted_excluded),
@@ -70,14 +63,7 @@ def prepare_report(
     }
     if strategy.name == "gain":
         summary.update(period=strategy.period, gain_threshold_pct=str(strategy.gain_threshold * 100),
-                       gain_comparison=strategy.gain_comparison,
-                       comparison="latest_close / close_N_records_earlier - 1 " + (">=" if strategy.gain_comparison == "ge" else ">") + " threshold")
-    elif strategy.name == "limit-up":
-        summary.update(comparison="close == supplied daily limit_up_price", limit_price_method="supplied_daily_price",
-                       price_basis_note="Unadjusted close and supplied same-day limit price; no adjustment needed")
-        if limit_price_book is not None:
-            summary.update(limit_prices_path=str(limit_price_book.path), limit_prices_sha256=limit_price_book.sha256,
-                           limit_price_records=len(limit_price_book.entries))
+                       comparison="latest_close / close_N_records_earlier - 1 >= threshold")
     else:
         summary.update(fast_period=strategy.fast_period, slow_period=strategy.slow_period,
                        trend_filter=strategy.trend_filter, trend_period=strategy.trend_period,
@@ -93,8 +79,8 @@ def export_report(rows: list[dict], summary: dict, output_dir: Path) -> Path:
     run_dir = output_dir / f"股票分析_{stamp}_{uuid4().hex[:12]}"
     run_dir.mkdir()
     columns = ["market", "code", "name", "board", "status", "date", "close"]
-    columns += {"ma-cross": ["previous_date", "fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma"],
-                "limit-up": ["limit_up_price"]}.get(summary.get("strategy"), ["base_date", "base_close", "gain_ratio", "gain_pct"])
+    columns += (["previous_date", "fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma"]
+                if summary.get("strategy") == "ma-cross" else ["base_date", "base_close", "gain_ratio", "gain_pct"])
     columns += ["price_adjustment"]
     with (run_dir / "matches.csv").open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)
