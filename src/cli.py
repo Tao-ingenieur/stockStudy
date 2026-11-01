@@ -45,7 +45,7 @@ def main(argv=None) -> int:
     command.add_argument("--slow-period", type=positive_int, default=20, help="金叉长期均线周期，默认20")
     command.add_argument("--trend-period", type=positive_int, default=120, help="趋势过滤均线周期，默认120")
     command.add_argument("--no-trend-filter", action="store_true", help="金叉不要求收盘价高于趋势均线；默认要求")
-    command.add_argument("--as-of", type=date.fromisoformat, help="只扫描最后一条记录恰为该日期的股票 YYYY-MM-DD；留空使用数据包最新交易日")
+    command.add_argument("--as-of", type=date.fromisoformat, help="只扫描最后一条记录恰为该日期的股票 YYYY-MM-DD；留空使用行情数据中的最新交易日")
     command.add_argument("--names", type=Path, help="自定义 market,code,name,status,name_checked_at CSV")
     command.add_argument("--output-dir", type=Path, help="明确指定后才导出结果到此目录；默认不保存文件")
     command.add_argument("--quiet", action="store_true")
