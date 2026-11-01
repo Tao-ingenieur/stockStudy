@@ -225,3 +225,40 @@ class DesktopWidgetTests(unittest.TestCase):
             self.assertNotIn("listing_status", self.app.table["columns"])
             self.assertFalse(hasattr(self.app, "status_box"))
             self.assertEqual(self.app.exported_info, ("filtered", 1))
+
+    def test_board_options_follow_market_and_reset_incompatible_choice(self):
+        self.app.market_label.set(self.app.t("market_sh"))
+        self.app._filters_changed()
+        self.assertIn(self.app.t("board_star"), self.app.board_box["values"])
+        self.assertNotIn(self.app.t("board_chinext"), self.app.board_box["values"])
+        self.app.board_label.set(self.app.t("board_star"))
+        self.app._board_changed()
+        self.assertEqual(self.app.result_board.get(), "star")
+        self.app.market_label.set(self.app.t("market_sz"))
+        self.app._filters_changed()
+        self.assertEqual(self.app.result_board.get(), "all")
+        self.assertIn(self.app.t("board_chinext"), self.app.board_box["values"])
+        self.app.market_label.set(self.app.t("market_bj"))
+        self.app._filters_changed()
+        self.assertTrue(self.app.board_box.instate(["disabled"]))
+        self.assertEqual(self.app.board_label.get(), "北交所（不细分）")
+        self.app.reset_filters()
+        self.assertEqual(self.app.result_market.get(), "all")
+        self.assertEqual(self.app.result_board.get(), "all")
+        self.assertFalse(self.app.board_box.instate(["disabled"]))
+
+    def test_board_filter_keeps_result_and_language_state(self):
+        from stockstudy.application import AnalysisOutcome
+        from test_result_filters import row
+        rows = [row("sh", "688001"), row("sz", "300001")]
+        self.app.outcome = AnalysisOutcome({}, rows)
+        self.app.board_label.set(self.app.t("board_chinext"))
+        self.app._board_changed()
+        self.assertEqual(self.app._filtered_rows(), [rows[1]])
+        self.app.language.set("en")
+        with patch.object(self.app, "_refresh_text"):
+            self.app.switch_language()
+        self.assertEqual(self.app.board_label.get(), "ChiNext")
+        self.assertEqual(self.app.result_board.get(), "chinext")
+        self.assertEqual(self.app._filtered_rows(), [rows[1]])
+        self.assertEqual(len(self.app.outcome.rows), 2)

@@ -8,6 +8,7 @@ from pathlib import Path
 from . import __version__
 from .models import ScanResult, Security, SecurityInfo
 from .strategies import Strategy
+from .boards import board_for
 
 
 def price(cents: int | None) -> str:
@@ -25,6 +26,7 @@ def prepare_report(
         row = {
             "market": item.security.market, "code": item.security.code,
             "name": names.get(item.security, ""), "date": item.date.isoformat(),
+            "board": board_for(item.security.market, item.security.code),
             "status": info.status if info is not None else "unknown",
             "close": price(item.close), "price_adjustment": "unadjusted",
         }
@@ -76,7 +78,7 @@ def export_report(rows: list[dict], summary: dict, output_dir: Path) -> Path:
     stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
     run_dir = output_dir / f"股票分析_{stamp}_{uuid4().hex[:12]}"
     run_dir.mkdir()
-    columns = ["market", "code", "name", "status", "date", "close"]
+    columns = ["market", "code", "name", "board", "status", "date", "close"]
     columns += (["previous_date", "fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma"]
                 if summary.get("strategy") == "ma-cross" else ["base_date", "base_close", "gain_ratio", "gain_pct"])
     columns += ["price_adjustment"]

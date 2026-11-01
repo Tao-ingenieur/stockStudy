@@ -11,6 +11,7 @@ from . import __version__
 from .application import analyze, export_analysis, filter_results, make_request, MARKET_FILTERS
 from .cli import find_workspace
 from .i18n import translate
+from .boards import BOARDS_BY_MARKET
 from .service import ScanCancelled
 
 STRATEGIES = {"gain": "gain", "ma-cross": "ma-cross"}
@@ -46,6 +47,7 @@ class StockStudyApp:
         self.as_of = tk.StringVar()
         self.exclude_delisted = tk.BooleanVar(value=True)
         self.result_market = tk.StringVar(value="all")
+        self.result_board = tk.StringVar(value="all")
         self.search = tk.StringVar()
         self.status = tk.StringVar()
         self.counts = tk.StringVar()
@@ -189,6 +191,12 @@ class StockStudyApp:
                                        values=[self.t("market_" + key) for key in MARKET_FILTERS])
         self.market_box.pack(side="left", padx=(8, 18))
         self.market_box.bind("<<ComboboxSelected>>", self._filters_changed)
+        ttk.Label(filters, text=self.t("board_filter")).pack(side="left")
+        self.board_label = tk.StringVar()
+        self.board_box = ttk.Combobox(filters, textvariable=self.board_label, state="readonly", width=22)
+        self.board_box.pack(side="left", padx=(8, 18))
+        self.board_box.bind("<<ComboboxSelected>>", self._board_changed)
+        self._sync_boards()
         ttk.Button(filters, text=self.t("reset_filters"), command=self.reset_filters).pack(side="left")
         footer = ttk.Frame(results)
         footer.pack(side="bottom", fill="x", pady=(8, 0))
@@ -403,7 +411,8 @@ class StockStudyApp:
             self._refresh_text()
 
     def _filter_values(self):
-        return dict(market=self.result_market.get(), status="all", query=self.search.get().strip())
+        return dict(market=self.result_market.get(), board=self.result_board.get(),
+                    status="all", query=self.search.get().strip())
 
     def _filtered_rows(self):
         return filter_results(self.outcome.rows, **self._filter_values()) if self.outcome else []
@@ -411,10 +420,31 @@ class StockStudyApp:
     def _filters_changed(self, _event=None):
         markets = list(MARKET_FILTERS)
         self.result_market.set(markets[[self.t("market_" + key) for key in markets].index(self.market_label.get())])
+        self._sync_boards()
+        self._render_rows()
+
+    def _board_text(self, key):
+        if self.result_market.get() == "bj" and key == "all":
+            return self.t("board_bj_all")
+        return self.t("board_" + key)
+
+    def _sync_boards(self):
+        choices = BOARDS_BY_MARKET[self.result_market.get()]
+        if self.result_board.get() not in choices:
+            self.result_board.set("all")
+        self.board_box.configure(values=[self._board_text(key) for key in choices],
+                                 state="disabled" if len(choices) == 1 else "readonly")
+        self.board_label.set(self._board_text(self.result_board.get()))
+
+    def _board_changed(self, _event=None):
+        choices = BOARDS_BY_MARKET[self.result_market.get()]
+        self.result_board.set(choices[[self._board_text(key) for key in choices].index(self.board_label.get())])
         self._render_rows()
 
     def reset_filters(self):
         self.result_market.set("all")
+        self.result_board.set("all")
+        self._sync_boards()
         self.market_label.set(self.t("market_all"))
         self.search.set("")
         self._render_rows()

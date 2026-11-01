@@ -61,3 +61,38 @@ class ResultFilterTests(unittest.TestCase):
             self.assertEqual(meta["export_scope"], "all")
             self.assertEqual(meta["export_record_count"], 4)
             self.assertNotIn("result_filters", meta)
+
+    def test_board_classification_covers_supported_codes_and_unknowns(self):
+        from stockstudy.boards import board_for
+        cases = {("sh", "600000"): "sh-main", ("sh", "601001"): "sh-main",
+                 ("sh", "603001"): "sh-main", ("sh", "605001"): "sh-main",
+                 ("sh", "688001"): "star", ("sh", "689009"): "star",
+                 ("sz", "000001"): "sz-main", ("sz", "002001"): "sz-main",
+                 ("sz", "003001"): "sz-main", ("sz", "300001"): "chinext",
+                 ("sz", "301001"): "chinext", ("bj", "920001"): "bse",
+                 ("bj", "830799"): "bse", ("bj", "430047"): "bse",
+                 ("bj", "870001"): "bse", ("sh", "699999"): "other",
+                 ("sz", "688001"): "other", ("sh", "bad"): "other"}
+        for inputs, expected in cases.items():
+            with self.subTest(inputs=inputs):
+                self.assertEqual(board_for(*inputs), expected)
+
+    def test_board_and_market_search_intersection(self):
+        rows = [row("sh", "600000"), row("sh", "688001"), row("sz", "002001"),
+                row("sz", "301001"), row("bj", "920001")]
+        self.assertEqual(filter_results(rows, board="star"), [rows[1]])
+        self.assertEqual(filter_results(rows, market="sz", board="chinext", query="301"), [rows[3]])
+        self.assertEqual(filter_results(rows, market="sh", board="chinext"), [])
+        self.assertEqual(filter_results(rows, market="shsz", board="bse"), [])
+        with self.assertRaises(ValueError):
+            filter_results(rows, board="invalid")
+
+    def test_board_filter_is_recorded_in_export(self):
+        rows = [row("sh", "688001"), row("sz", "300001")]
+        outcome = AnalysisOutcome(dict(strategy="gain", matches=2), rows)
+        with tempfile.TemporaryDirectory() as temp:
+            path = export_analysis(outcome, Path(temp), filters=dict(market="all", board="star"))
+            exported = json.loads((path / "matches.json").read_text(encoding="utf-8"))
+            summary = json.loads((path / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(exported, [rows[0]])
+            self.assertEqual(summary["result_filters"]["board"], "star")

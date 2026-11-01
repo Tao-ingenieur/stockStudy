@@ -12,6 +12,7 @@ from .reports import prepare_report, export_report
 from .service import ScanCancelled, scan
 from .strategies import Strategy
 from .i18n import translate
+from .boards import BOARD_FILTERS, board_for
 
 
 @dataclass(frozen=True)
@@ -72,14 +73,15 @@ MARKET_FILTERS = {"all": None, "sh": {"sh"}, "sz": {"sz"}, "bj": {"bj"}, "shsz":
 STATUS_FILTERS = ("all", "listed", "delisted", "unknown")
 
 
-def filter_results(rows: list[dict], *, market="all", status="all", query="") -> list[dict]:
+def filter_results(rows: list[dict], *, market="all", status="all", query="", board="all") -> list[dict]:
     """Filter completed results in memory; do not alter the analysis or its order."""
-    if market not in MARKET_FILTERS or status not in STATUS_FILTERS:
+    if market not in MARKET_FILTERS or status not in STATUS_FILTERS or board not in BOARD_FILTERS:
         raise ValueError("Unknown result filter")
     markets = MARKET_FILTERS[market]
     term = query.strip().casefold()
     return [row for row in rows
             if (markets is None or row["market"] in markets)
+            and (board == "all" or board_for(row["market"], row["code"]) == board)
             and (status == "all" or row.get("status", "unknown") == status)
             and (not term or term in (row["market"] + row["code"] + " " +
                                       " ".join(str(row.get(key, "")) for key in

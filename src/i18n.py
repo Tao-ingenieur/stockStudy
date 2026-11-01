@@ -98,5 +98,21 @@ TEXT["help_body"] = tuple(body.replace(old, new) + extra for body, old, new, ext
 ))
 
 
+TEXT.update({
+    "board_filter": ("板块", "Board"), "board_all": ("全部板块", "All Boards"),
+    "board_sh-main": ("上海主板", "Shanghai Main Board"),
+    "board_star": ("科创板", "STAR Market"),
+    "board_sz-main": ("深圳主板", "Shenzhen Main Board"),
+    "board_chinext": ("创业板", "ChiNext"),
+    "board_bse": ("北交所", "Beijing Exchange"),
+    "board_other": ("其他 / 未识别", "Other / Unclassified"),
+    "board_bj_all": ("北交所（不细分）", "Beijing (no subdivision)"),
+})
+TEXT["help_body"] = tuple(body + extra for body, extra in zip(TEXT["help_body"], (
+    "\n\n板块筛选随市场联动：上海为主板/科创板，深圳为主板/创业板（原中小板并入主板），北京在当前范围内不再细分。全部市场可直接选科创板、创业板等。切换市场时，不兼容的板块自动重置；重置筛选恢复全部。分类按支持的市场和代码规则推导，不代表上市状态，导出保留 board 字段和筛选条件。",
+    "\n\nBoard options follow the market: Shanghai Main/STAR, Shenzhen Main/ChiNext (former SME Board is included in Main), and no subdivision for Beijing. All Markets allows direct selection of any supported board. Incompatible selections reset when the market changes. Classification uses supported market/code rules, not listing-status verification. Exports retain board and filter criteria."
+)))
+
+
 def translate(language, key, **values):
     return TEXT[key][language == "en"].format(**values)
