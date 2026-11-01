@@ -8,7 +8,7 @@ from unittest.mock import patch
 from stockstudy.application import analyze, make_request
 from stockstudy.service import ScanCancelled
 from stockstudy.windows import StockStudyApp
-from test_tdx import record
+from test_tdx import record, gain_records
 
 
 class DesktopOperationTests(unittest.TestCase):
@@ -17,21 +17,21 @@ class DesktopOperationTests(unittest.TestCase):
         self.directory = Path(self.temp.name)
         self.data = self.directory / "sh/lday/sh688001.day"
         self.data.parent.mkdir(parents=True)
-        self.data.write_bytes(record(low=1333))
+        self.data.write_bytes(gain_records())
 
     def tearDown(self):
         self.temp.cleanup()
 
     def request(self, **changes):
         fields = dict(data=str(self.directory / "sh"), output=str(self.directory / "output"),
-                      mode="pattern", lookback="1", threshold="40", references="40,20,10,5", as_of="2026-10-30")
+                      period="20", threshold="10", as_of="2026-10-30")
         fields.update(changes)
         return make_request(**fields)
 
     def test_invalid_parameters_are_reported_before_scanning(self):
-        for changes in ({"lookback": "0"}, {"as_of": "wrong-date"},
-                        {"mode": "pattern-drop", "threshold": "100"},
-                        {"mode": "pattern-drop", "references": "5,0"},
+        for changes in ({"period": "0"}, {"as_of": "wrong-date"},
+                        {"threshold": "NaN"},
+                        {"threshold": "-1"},
                         {"data": str(self.directory / "missing.zip")}, {"output": ""}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 self.request(**changes)
@@ -40,7 +40,7 @@ class DesktopOperationTests(unittest.TestCase):
         progress = []
         outcome = analyze(self.request(), progress=lambda done, total: progress.append((done, total)))
         self.assertEqual(outcome.summary["matches"], 1)
-        self.assertEqual(outcome.rows[0]["low"], "13.33")
+        self.assertEqual(outcome.rows[0]["close"], "14.00")
         self.assertTrue((outcome.directory / "matches.csv").is_file())
         self.assertEqual(progress, [(1, 1)])
 
@@ -48,10 +48,6 @@ class DesktopOperationTests(unittest.TestCase):
         with self.assertRaises(ScanCancelled):
             analyze(self.request(), cancelled=lambda: True)
         self.assertFalse((self.directory / "output").exists())
-
-    def test_unused_drop_settings_do_not_block_basic_strategy(self):
-        self.assertEqual(self.request(threshold="", references="").strategy.name, "pattern")
-
 
 class DesktopWidgetTests(unittest.TestCase):
     def setUp(self):
@@ -63,12 +59,10 @@ class DesktopWidgetTests(unittest.TestCase):
         self.root.destroy()
 
     def test_strategy_controls_and_defaults(self):
-        self.assertEqual(self.app.lookback.get(), "1")
-        self.assertTrue(self.app.threshold_entry.instate(["disabled"]))
-        self.app.mode.set("价格形态 + 跌幅")
-        self.app._mode_changed()
-        self.assertEqual(self.app.lookback.get(), "100")
+        self.assertEqual(self.app.period.get(), "20")
+        self.assertEqual(self.app.threshold.get(), "10")
         self.assertFalse(self.app.threshold_entry.instate(["disabled"]))
+        self.assertEqual(len(self.app.table["columns"]), 7)
 
     def test_invalid_input_shows_dialog_without_starting_worker(self):
         self.app.data.set("Z:/stockstudy-nonexistent-test.zip")
@@ -82,7 +76,7 @@ class DesktopWidgetTests(unittest.TestCase):
             directory = Path(temp)
             data = directory / "sh/lday/sh688001.day"
             data.parent.mkdir(parents=True)
-            data.write_bytes(record(low=1333))
+            data.write_bytes(gain_records())
             self.app.data.set(str(directory / "sh"))
             self.app.output.set(str(directory / "output"))
             self.app.start()

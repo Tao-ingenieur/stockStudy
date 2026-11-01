@@ -30,7 +30,7 @@ class AnalysisOutcome:
     rows: list[dict]
 
 
-def make_request(data, output, mode, lookback, threshold, references, as_of, include_delisted=False) -> AnalysisRequest:
+def make_request(data, output, period, threshold, as_of, include_delisted=False) -> AnalysisRequest:
     if not data.strip():
         raise ValueError("请选择通达信 ZIP 文件或解压后的数据目录。")
     data_path = Path(data.strip().strip('"')).expanduser().resolve()
@@ -42,12 +42,9 @@ def make_request(data, output, mode, lookback, threshold, references, as_of, inc
     if output_path.exists() and not output_path.is_dir():
         raise ValueError("结果保存路径必须是文件夹。")
     try:
-        count = int(lookback)
-        ratio = Decimal(threshold) / 100 if mode == "pattern-drop" else Decimal("0.4")
-        offsets = tuple(int(item.strip()) for item in references.replace("，", ",").split(",")) if mode == "pattern-drop" else (40, 20, 10, 5)
-        strategy = Strategy(mode, count, ratio, offsets)
+        strategy = Strategy(period=int(period), gain_threshold=Decimal(threshold) / 100)
     except (ValueError, InvalidOperation):
-        raise ValueError("请检查参数：记录数和参考位置须为正整数，跌幅阈值须在 0% 到 100% 之间。") from None
+        raise ValueError("请检查参数：比较周期须为正整数，涨幅阈值须为非负有限数值。") from None
     try:
         day = date.fromisoformat(as_of.strip()) if as_of.strip() else None
     except ValueError:

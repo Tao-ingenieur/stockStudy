@@ -38,12 +38,11 @@ def main(argv=None) -> int:
     command.add_argument("--workspace", type=Path, help="包含 stock_data/output 的工作区")
     command.add_argument("--source", choices=sorted(SOURCE_FACTORIES), default="tdx")
     command.add_argument("--data", type=Path, help="通达信 ZIP 或解压目录")
-    command.add_argument("--strategy", choices=["pattern", "pattern-drop"], default="pattern")
-    command.add_argument("--lookback", type=positive_int, help="最近记录数；两种模式默认分别为 1 / 100")
-    command.add_argument("--drop-threshold", default="0.4", help="严格大于的跌幅阈值，默认 0.4")
-    command.add_argument("--reference-days", default="40,20,10,5", help="历史参考位置，逗号分隔")
+    command.add_argument("--strategy", choices=["gain"], default="gain")
+    command.add_argument("--period", type=positive_int, default=20, help="比较周期 N，按各股票交易记录计数；默认 20，需 N+1 条记录")
+    command.add_argument("--gain-threshold", default="10", help="涨幅严格超过此百分比；10 表示 10%%，默认 10")
     command.add_argument("--as-of", type=date.fromisoformat, help="只扫描最后一条记录恰为该日期的股票 YYYY-MM-DD")
-    command.add_argument("--names", type=Path, help="自定义 market,code,name CSV")
+    command.add_argument("--names", type=Path, help="自定义 market,code,name,status,name_checked_at CSV")
     command.add_argument("--output-dir", type=Path, help="分析结果根目录")
     command.add_argument("--quiet", action="store_true")
     command.add_argument("--include-delisted", action="store_true", help="包含已确认退市股票（默认排除）；未知状态仍保留并提示")
@@ -60,8 +59,7 @@ def main(argv=None) -> int:
     output_dir = args.output_dir or workspace / "output"
     try:
         strategy = Strategy(
-            args.strategy, args.lookback or (100 if args.strategy == "pattern-drop" else 1),
-            Decimal(args.drop_threshold), tuple(int(n.strip()) for n in args.reference_days.split(",")),
+            args.strategy, args.period, Decimal(args.gain_threshold) / 100,
         )
         security_info = load_security_info(args.names)
         names = {security: info.name for security, info in security_info.items()}
@@ -87,6 +85,7 @@ def main(argv=None) -> int:
     exclusions = sum(e["kind"] == "date_mismatch" for e in result.errors)
     print(f"Read {result.scanned}; matches {len(result.matches)}; read errors {failures}; date exclusions {exclusions}")
     print(f"Delisted excluded {len(result.delisted_excluded)}; unknown listing status {len(result.unknown_status)}")
+    print(f"Insufficient history {len(result.insufficient_history)}; invalid close {len(result.invalid_close)}; price basis: unadjusted close-to-close")
     print(f"Reports: {report_dir.resolve()}")
     # Date exclusions are reported, but are not data read failures.
     return 2 if failures else 0

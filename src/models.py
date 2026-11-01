@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,11 +37,10 @@ class SecurityInfo:
 class Match:
     security: Security
     date: date
-    low: int
-    pattern: str
-    reference_days: int | None = None
-    reference_date: date | None = None
-    reference_high: int | None = None
+    close: int
+    base_date: date
+    base_close: int
+    gain_ratio: Decimal
 
 
 @dataclass(slots=True)
@@ -49,6 +49,8 @@ class ScanResult:
     errors: list[dict[str, str]] = field(default_factory=list)
     scanned: int = 0
     empty: int = 0
+    insufficient_history: list[str] = field(default_factory=list)
+    invalid_close: list[str] = field(default_factory=list)
     dates: dict[Security, date] = field(default_factory=dict)
     delisted_excluded: list[str] = field(default_factory=list)
     unknown_status: list[str] = field(default_factory=list)

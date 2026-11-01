@@ -7,7 +7,7 @@
 | 模块 | 职责 |
 | --- | --- |
 | `models.py` | 证券、日线、命中记录、扫描结果 |
-| `strategies.py` | 精确价格形态和历史跌幅规则，纯函数 |
+| `strategies.py` | 收盘价区间涨幅筛选，纯函数 |
 | `readers/base.py` | 数据源 Protocol |
 | `readers/tdx.py` | 本地 `.day` 与 ZIP 适配 |
 | `service.py` | 扫描协调、单股票错误隔离、数据日期过滤 |

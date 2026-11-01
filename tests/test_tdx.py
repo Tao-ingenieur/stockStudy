@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 import zipfile
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from stockstudy.models import Security
@@ -10,6 +10,12 @@ from stockstudy.readers.tdx import RECORD, TdxSource, parse_records, stock_secur
 
 def record(day=20261030, low=1388, high=1400):
     return RECORD.pack(day, high, high, low, high, 123456.0, 12300, 0)
+
+
+def gain_records():
+    start = date(2026, 10, 10)
+    return b"".join(record(int((start + timedelta(days=i)).strftime("%Y%m%d")),
+                           low=1000 + i * 20, high=1000 + i * 20) for i in range(21))
 
 
 class TdxTests(unittest.TestCase):

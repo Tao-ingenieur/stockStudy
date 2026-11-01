@@ -12,7 +12,7 @@ from stockstudy.names import load_security_info, default_names
 from stockstudy.readers.tdx import TdxSource
 from stockstudy.service import scan
 from stockstudy.strategies import Strategy
-from test_tdx import record
+from test_tdx import record, gain_records
 
 
 class SecurityMetadataTests(unittest.TestCase):
@@ -47,7 +47,7 @@ class SecurityMetadataTests(unittest.TestCase):
             for symbol, flag in files.items():
                 target = root / symbol[:2] / "lday" / (symbol + ".day")
                 target.parent.mkdir(parents=True)
-                target.write_bytes(record(low=1333))
+                target.write_bytes(gain_records())
                 info[Security(symbol[:2], symbol[2:])] = SecurityInfo(symbol, flag)
             with TdxSource(root) as source:
                 result = scan(source, Strategy(), security_info=info)

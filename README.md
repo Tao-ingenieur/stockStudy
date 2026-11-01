@@ -1,6 +1,6 @@
 # StockStudy 本地日线筛选工具
 
-StockStudy 读取本地股票日线，按最低价数字形态筛选记录，支持附加历史价格跌幅条件。当前已实现通达信 `.day` 文件及官方 ZIP 数据包读取，提供 CLI 和 Windows 图形界面 EXE。策略核心与数据源、界面分离，便于以后增加其他行情来源和客户端。
+StockStudy 读取本地股票日线，按指定周期的收盘价涨幅筛选股票。当前已实现通达信 `.day` 文件及官方 ZIP 数据包读取，提供 CLI 和 Windows 图形界面 EXE。策略核心与数据源、界面分离，便于以后增加其他行情来源和客户端。
 
 这是一套规则筛选工具。当前没有回测、实时行情、自动交易或阶段底部确认功能。价格采用文件中的原始、不复权价格。
 
@@ -43,7 +43,7 @@ python repo/stockstudy.py --help
 python repo/stockstudy.py -version
 python repo/stockstudy.py sources
 python repo/stockstudy.py scan
-python repo/stockstudy.py scan --strategy pattern-drop
+python repo/stockstudy.py scan --period 20 --gain-threshold 10
 ```
 
 默认使用工作区的 `stock_data/tongdaxin/hsjday.zip`，默认写入 `output`。从项目或发布目录启动时，程序会向上寻找同时含有 `stock_data` 和 `output` 的工作区；其他位置请显式指定 `--workspace` 或 `--data`、`--output-dir`。
@@ -51,7 +51,7 @@ python repo/stockstudy.py scan --strategy pattern-drop
 ```powershell
 python repo/stockstudy.py scan --workspace D:/stockStudy
 python repo/stockstudy.py scan --data D:/行情/vipdoc --output-dir D:/分析结果
-python repo/stockstudy.py scan --data D:/行情/hsjday.zip --lookback 20
+python repo/stockstudy.py scan --data D:/行情/hsjday.zip --period 20
 ```
 
 相对路径按终端当前目录解释。数据可以放在任意有读取权限的目录；结果目录需要写入权限。
@@ -138,35 +138,32 @@ python repo/stockstudy.py scan --include-delisted
 
 这个选项用于历史研究时保留退市文件，不代表完整历史回测功能；`--as-of` 仍然只检查文件末条日期。未知状态不会被默认为正常或退市，数量和代码写入 `summary.json`；命中 CSV / JSON 包含 `status`。
 
-## 两种筛选策略
+## 区间涨幅筛选
 
-### pattern 价格形态筛选
-
-默认检查每只股票最近 1 条交易记录。最低价满足以下任意规则即命中：
-
-1. 整数个位与两位小数相同：`3.33`、`13.33`、`8.88`。
-2. 两位整数与两位小数相同或倒序：`12.12`、`12.21`。
-
-```powershell
-python repo/stockstudy.py scan --strategy pattern --lookback 5
-```
-
-### pattern-drop 价格形态与跌幅筛选
-
-默认检查每只股票最近 100 条交易记录。第一类价格规则放宽为两位小数相同，如 `13.88`；第二类规则相同。同时要求当前候选日最低价，相比之前第 40、20、10、5 条交易记录中任意一条的最高价，下降幅度严格大于 40%。
+默认找出最新收盘价相对 20 条交易记录前的收盘价，涨幅**严格超过 10%**的股票。每只股票最多一条结果。N=20 需要 21 条记录；N=1 比较相邻两条记录的收盘价。周期按该股票文件中的交易记录计数，不是自然日，也不补齐停牌日。
 
 ```text
-(参考日最高价 - 候选日最低价) / 参考日最高价 > 0.4
+区间涨幅 = (最新收盘价 / N 条记录前的收盘价 - 1) × 100%
+命中条件：区间涨幅 > 阈值
 ```
-
-参考日按 `40,20,10,5` 的顺序检查，记录第一个满足的参考日。比较的是指定日期的最高价，不是整个区间的最高价，也不确认候选日为阶段最低点。除权除息可能影响不复权价格的比较。
 
 ```powershell
-python repo/stockstudy.py scan --strategy pattern-drop --lookback 100
-python repo/stockstudy.py scan --strategy pattern-drop --drop-threshold 0.3 --reference-days 60,40,20,10
+python repo/stockstudy.py scan --period 20 --gain-threshold 10
+python repo/stockstudy.py scan --period 1 --gain-threshold 10
+python repo/stockstudy.py scan --period 5 --gain-threshold 3
 ```
 
-`lookback` 是每只股票末尾的记录条数，不是自然日。程序会额外读取跌幅比较所需的历史记录；历史不足时只检查存在的参考日。
+`--gain-threshold 10` 表示 10%，恰好 10% 不命中。比较使用原始整数分和精确十进制阈值，不依赖显示四舍五入。阈值可以超过 100%。结果按截止日期由近到远、同日涨幅由高到低排序。
+
+历史不足 N+1 条、基准或最新收盘价不大于零时不计算，代码与数量写入 `summary.json`。上市首日没有前一个收盘价时不会计算单日涨幅。当前证券范围由证券表的当前状态决定，不用于重建历史上市范围。
+
+### 价格口径与复权
+
+当前使用通达信 `.day` 中的**不复权成交价格**。分红、送股、转增或配股会使不同日期的原始股价不能直接比较。例如每股 10 元派现金 1 元后，9 元股价加 1 元现金不能简单视为损失 10%。复权通过调整价格，使权益变化前后的价格具有可比性。
+
+跨多日分析涨幅、走势和回测建议使用复权数据。即使 N=1，在除权除息日也不能把两天原始收盘价比值当作行情软件公布的单日涨幅：交易所使用除权除息参考价作为该日涨跌幅基准。参见[深交所的参考价说明](https://investor.szse.cn/knowledge/t20181017_555757.html)。
+
+当前读取的 `.day` 记录不包含复权因子和分红送配信息，程序尚未提供复权计算。要实现前复权或后复权，需要另外接入可靠的累计复权因子或权益事件数据；不能仅根据价格跳空猜测。界面、报告和汇总均明确标识不复权口径。本筛选器输出的是价格变化条件，不代表买入建议或已经验证的盈利策略。
 
 ### 数据日期和边界
 
@@ -180,11 +177,13 @@ python repo/stockstudy.py scan --as-of 2026-10-30
 
 ## 分析输出
 
+`gain_ratio` 为比例（0.12 表示 12%），`gain_pct` 为百分数（12 表示 12%）。报告中的基准和最新收盘价均为原始成交价。
+
 每次运行创建独立的 `output/<时间>_<策略>_<唯一后缀>/`，不会覆盖上次结果。
 
 | 文件 | 内容 |
 | --- | --- |
-| `matches.csv` | UTF-8 BOM，股票、日期、最低价、形态、参考日和跌幅 |
+| `matches.csv` | UTF-8 BOM，股票、截止日期、最新收盘价、基准日期及收盘价、涨幅和价格口径 |
 | `matches.json` | 同样的命中记录，供后续 Web/API/移动客户端消费 |
 | `summary.json` | 参数、版本、数据路径、扫描数量、日期分布、缺失名称和错误明细 |
 
@@ -197,11 +196,11 @@ python repo/stockstudy.py scan --as-of 2026-10-30
 Windows 版提供独立图形界面，双击 `dist/windows/stockstudy.exe` 即可使用，不会打开命令行窗口。
 
 1. 选择通达信 ZIP 数据包或解压后的行情目录，设置结果保存目录。
-2. 选择“价格形态”或“价格形态 + 跌幅”，设置最近记录数；跌幅模式可设置百分比阈值及历史参考位置。
+2. 设置比较周期 N 和涨幅阈值，默认 N=20、涨幅严格超过 10%。
 3. 可填写末条日期 `YYYY-MM-DD`；留空时采用每只股票自身最后一条记录。
 4. 点击“开始分析”。进度条显示扫描进度，可以取消；取消不会生成本次报告。
 5. 默认勾选“排除已确认退市”；未知状态仍参与，并在分析后提示数量。
-6. 在表格中查看结果，按代码、名称或日期搜索，或点击“打开完整 CSV”“打开结果目录”。表格预览最多 2000 条，CSV / JSON 包含完整结果。
+6. 在表格中查看结果，按代码、名称或日期搜索，或点击“打开完整 CSV”“打开结果目录”。表格预览最多 2000 条，CSV / JSON 包含完整结果。涨幅为不复权收盘价变化，可能受分红送转影响。
 
 窗口标题和“关于与帮助”显示版本。命令行任务使用 `dist/cli/stockstudy.pyz`。
 
@@ -240,7 +239,7 @@ dist/windows/stockstudy.exe
 python repo/scripts/test.py
 ```
 
-测试覆盖北交所识别、退市三态标识与过滤、名录导入、GUI 参数校验、后台扫描、取消、结果表格及搜索、价格形态、精度、跌幅阈值、历史边界、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
+测试覆盖北交所识别、退市三态标识与过滤、名录导入、GUI 参数校验、后台扫描、取消、结果表格及搜索、区间涨幅、精确阈值、历史不足与无效收盘价、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
 
 ## 后续数据源
 

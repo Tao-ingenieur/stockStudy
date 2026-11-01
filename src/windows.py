@@ -12,10 +12,6 @@ from .application import AnalysisOutcome, analyze, make_request
 from .cli import find_workspace
 from .service import ScanCancelled
 
-MODES = {"价格形态": "pattern", "价格形态 + 跌幅": "pattern-drop"}
-PATTERNS = {"triple-digit": "三位同数", "decimal-pair": "小数对子", "mirror-pair": "镜像价格"}
-
-
 class StockStudyApp:
     def __init__(self, root: tk.Tk):
         self.root = root
@@ -31,10 +27,8 @@ class StockStudyApp:
         workspace = find_workspace()
         self.data = tk.StringVar(value=str(workspace / "stock_data/tongdaxin/hsjday.zip"))
         self.output = tk.StringVar(value=str(workspace / "output"))
-        self.mode = tk.StringVar(value="价格形态")
-        self.lookback = tk.StringVar(value="1")
-        self.threshold = tk.StringVar(value="40")
-        self.references = tk.StringVar(value="40,20,10,5")
+        self.period = tk.StringVar(value="20")
+        self.threshold = tk.StringVar(value="10")
         self.as_of = tk.StringVar()
         self.exclude_delisted = tk.BooleanVar(value=True)
         self.search = tk.StringVar()
@@ -45,7 +39,7 @@ class StockStudyApp:
         self.rule = tk.StringVar()
         self._style()
         self._build()
-        self._mode_changed()
+        self.rule.set("规则：最新收盘价相对 N 条交易记录前收盘价，涨幅严格超过阈值；每只股票最多一条结果。")
         self.search.trace_add("write", self._schedule_filter)
         root.protocol("WM_DELETE_WINDOW", self._close)
         self.poll_after = root.after(100, self._poll)
@@ -97,12 +91,10 @@ class StockStudyApp:
         parameters = ttk.Frame(settings)
         parameters.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(12, 5))
         ttk.Label(parameters, text="策略").pack(side="left")
-        self.mode_box = ttk.Combobox(parameters, textvariable=self.mode, values=list(MODES), state="readonly", width=20)
-        self.mode_box.pack(side="left", padx=(8, 20))
-        self.mode_box.bind("<<ComboboxSelected>>", self._mode_changed)
-        ttk.Label(parameters, text="最近记录数").pack(side="left")
-        self.lookback_entry = ttk.Entry(parameters, textvariable=self.lookback, width=7)
-        self.lookback_entry.pack(side="left", padx=(8, 20))
+        ttk.Label(parameters, text="区间涨幅筛选").pack(side="left", padx=(8, 20))
+        ttk.Label(parameters, text="比较周期 N").pack(side="left")
+        self.period_entry = ttk.Entry(parameters, textvariable=self.period, width=7)
+        self.period_entry.pack(side="left", padx=(8, 20))
         ttk.Label(parameters, text="末条日期").pack(side="left")
         self.date_entry = ttk.Entry(parameters, textvariable=self.as_of, width=13)
         self.date_entry.pack(side="left", padx=(8, 8))
@@ -110,13 +102,10 @@ class StockStudyApp:
 
         advanced = ttk.Frame(settings)
         advanced.grid(row=3, column=0, columnspan=4, sticky="ew", pady=5)
-        ttk.Label(advanced, text="跌幅阈值 (%)").pack(side="left")
+        ttk.Label(advanced, text="涨幅超过 (%)").pack(side="left")
         self.threshold_entry = ttk.Entry(advanced, textvariable=self.threshold, width=7)
         self.threshold_entry.pack(side="left", padx=(8, 20))
-        ttk.Label(advanced, text="历史参考位置").pack(side="left")
-        self.references_entry = ttk.Entry(advanced, textvariable=self.references, width=18)
-        self.references_entry.pack(side="left", padx=(8, 12))
-        ttk.Label(advanced, text="仅“价格形态 + 跌幅”策略使用", style="Muted.TLabel").pack(side="left")
+        ttk.Label(advanced, text="N=1 比较相邻两条记录；N=20 需21条记录。价格口径：不复权。", style="Muted.TLabel").pack(side="left")
         self.delisted_check = ttk.Checkbutton(advanced, text="排除已确认退市", variable=self.exclude_delisted)
         self.delisted_check.pack(side="right")
         ttk.Label(settings, textvariable=self.rule, style="Muted.TLabel", wraplength=1020).grid(row=4, column=0, columnspan=4, sticky="w", pady=(9, 0))
@@ -148,10 +137,10 @@ class StockStudyApp:
         ttk.Label(footer, textvariable=self.detail, style="Muted.TLabel", wraplength=1080).pack(anchor="w")
         table_frame = ttk.Frame(container)
         table_frame.pack(fill="both", expand=True)
-        columns = ("symbol", "name", "date", "low", "pattern", "reference", "drop")
+        columns = ("symbol", "name", "date", "close", "base_date", "base_close", "gain")
         self.table = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
-        headings = ("股票代码", "股票名称", "日期", "最低价", "价格形态", "参考日", "跌幅")
-        widths = (110, 150, 120, 100, 130, 150, 90)
+        headings = ("股票代码", "股票名称", "截止日期", "收盘价", "基准日期", "基准收盘价", "涨幅（不复权）")
+        widths = (110, 140, 120, 100, 120, 110, 140)
         for column, heading, width in zip(columns, headings, widths):
             self.table.heading(column, text=heading)
             self.table.column(column, width=width, minwidth=75, anchor="w" if column == "name" else "center")
@@ -161,15 +150,7 @@ class StockStudyApp:
         scrollbar.pack(side="right", fill="y")
         self.table.tag_configure("alternate", background="#f2f6fc")
         self.inputs = [self.data_entry, self.output_entry, self.zip_button, self.directory_button,
-                       self.output_button, self.lookback_entry, self.date_entry, self.delisted_check]
-
-    def _mode_changed(self, _event=None):
-        broad = self.mode.get() == "价格形态 + 跌幅"
-        self.lookback.set("100" if broad else "1")
-        self.rule.set("规则：小数两位相同或镜像价格，并且相对指定历史日最高价的跌幅严格大于阈值。"
-            if broad else "规则：最低价整数个位与两位小数相同（如 13.33），或整数与小数相同 / 倒序（如 12.12、12.21）。")
-        for widget in (self.threshold_entry, self.references_entry):
-            widget.configure(state="normal" if broad and not self.running else "disabled")
+                       self.output_button, self.period_entry, self.threshold_entry, self.date_entry, self.delisted_check]
 
     def _choose_zip(self):
         value = filedialog.askopenfilename(parent=self.root, title="选择通达信日线数据包", filetypes=[("ZIP 数据包", "*.zip"), ("全部文件", "*.*")])
@@ -192,17 +173,13 @@ class StockStudyApp:
         self.cancel_button.configure(state="normal" if running else "disabled")
         for widget in self.inputs:
             widget.configure(state="disabled" if running else "normal")
-        self.mode_box.configure(state="disabled" if running else "readonly")
-        state = "normal" if not running and MODES[self.mode.get()] == "pattern-drop" else "disabled"
-        self.threshold_entry.configure(state=state)
-        self.references_entry.configure(state=state)
 
     def start(self):
         if self.running:
             return
         try:
-            request = make_request(self.data.get(), self.output.get(), MODES[self.mode.get()], self.lookback.get(),
-                                   self.threshold.get(), self.references.get(), self.as_of.get(),
+            request = make_request(self.data.get(), self.output.get(), self.period.get(),
+                                   self.threshold.get(), self.as_of.get(),
                                    include_delisted=not self.exclude_delisted.get())
         except ValueError as exc:
             messagebox.showerror("请检查分析设置", str(exc), parent=self.root)
@@ -242,7 +219,7 @@ class StockStudyApp:
                         self.progress["value"] = 100
                         self.status.set("分析完成" if not summary["read_errors"] else "已完成，部分文件读取失败")
                         self.counts.set(f"命中记录  {summary['matches']:,}       命中股票  {summary['matched_securities']:,}       读取异常  {summary['read_errors']:,}")
-                        self.detail.set(f"已保存到 {value.directory}。已排除退市 {summary['delisted_excluded_count']}；上市状态未知 {summary['unknown_listing_status_count']}（仍参与分析）。")
+                        self.detail.set(f"已保存到 {value.directory}。排除退市 {summary['delisted_excluded_count']}；状态未知 {summary['unknown_listing_status_count']}；历史不足 {summary['insufficient_history_count']}；无效收盘价 {summary['invalid_close_count']}。不复权涨幅可能受分红送转影响。")
                         self.folder_button.configure(state="normal")
                         self.csv_button.configure(state="normal")
                         self._render_rows()
@@ -278,9 +255,9 @@ class StockStudyApp:
         rows = [row for row in self.outcome.rows if not term or term in " ".join(
             str(row[key]) for key in ("market", "code", "name", "date")).lower()]
         for i, row in enumerate(rows[:2000]):
-            drop = "—" if row["drop_ratio"] is None else f"{row['drop_ratio']:.1%}"
+            gain = f"{row['gain_pct']:.4f}%"
             self.table.insert("", "end", values=(row["market"] + row["code"], row["name"] or "—", row["date"],
-                row["low"], PATTERNS.get(row["pattern"], row["pattern"]), row["reference_date"] or "—", drop),
+                row["close"], row["base_date"], row["base_close"], gain),
                 tags=("alternate",) if i % 2 else ())
         self.preview.set(f"显示 {min(len(rows), 2000):,} / {len(rows):,} 条匹配记录 · 完整结果已保存为 CSV 和 JSON")
 
@@ -299,7 +276,7 @@ class StockStudyApp:
             self._open(self.outcome.directory / "matches.csv")
 
     def about(self):
-        messagebox.showinfo("关于 StockStudy", f"StockStudy {__version__}\n\n选择通达信 ZIP 或数据目录，设置策略后开始分析。\n扫描天数按交易记录条数计算。\n末条日期留空时不统一各股票的数据日期。\n\n价格不复权；筛选规则不确认阶段底部。\n分析结果保存在指定目录，支持 CSV 和 JSON。", parent=self.root)
+        messagebox.showinfo("关于 StockStudy", f"StockStudy {__version__}\n\n选择通达信 ZIP 或数据目录，设置策略后开始分析。\n比较周期按各股票交易记录计数，N=20需21条日线。\n末条日期留空时不统一各股票的数据日期。\n\n价格不复权；分红送转可能影响涨幅。\n涨幅为收盘价比值，除权除息日可能不同于行情软件公布的单日涨幅。\n分析结果保存在指定目录，支持 CSV 和 JSON。", parent=self.root)
 
     def _close(self):
         if self.running:

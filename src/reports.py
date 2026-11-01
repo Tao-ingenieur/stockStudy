@@ -25,20 +25,18 @@ def write_report(
     run_dir.mkdir()
     rows = []
     for item in result.matches:
-        high = item.reference_high
         info = security_info.get(item.security) if security_info is not None else None
         rows.append({
             "market": item.security.market, "code": item.security.code,
             "name": names.get(item.security, ""), "date": item.date.isoformat(),
             "status": info.status if info is not None else "unknown",
-            "low": price(item.low), "pattern": item.pattern,
-            "reference_days": item.reference_days,
-            "reference_date": item.reference_date.isoformat() if item.reference_date else "",
-            "reference_high": price(high),
-            "drop_ratio": round((high - item.low) / high, 8) if high else None,
+            "close": price(item.close), "base_date": item.base_date.isoformat(),
+            "base_close": price(item.base_close), "gain_ratio": float(round(item.gain_ratio, 10)),
+            "gain_pct": float(round(item.gain_ratio * 100, 6)),
+            "price_adjustment": "unadjusted",
         })
-    columns = ["market", "code", "name", "status", "date", "low", "pattern", "reference_days",
-               "reference_date", "reference_high", "drop_ratio"]
+    columns = ["market", "code", "name", "status", "date", "close", "base_date",
+               "base_close", "gain_ratio", "gain_pct", "price_adjustment"]
     with (run_dir / "matches.csv").open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)
         writer.writeheader()
@@ -48,8 +46,13 @@ def write_report(
         "version": __version__, "created_at": datetime.now(timezone.utc).isoformat(),
         "source": source_name, "data_path": str(data_path.resolve()),
         "price_adjustment": "unadjusted", "volume_unit": "shares", "price_unit": "CNY",
-        "strategy": strategy.name, "lookback": strategy.lookback,
-        "drop_threshold": str(strategy.drop_threshold), "reference_days": list(strategy.reference_days),
+        "strategy": strategy.name, "period": strategy.period,
+        "gain_threshold_pct": str(strategy.gain_threshold * 100),
+        "comparison": "latest_close / close_N_records_earlier - 1 > threshold",
+        "price_basis_note": "Unadjusted close-to-close change; corporate actions may distort returns. Not exchange-published daily change.",
+        "insufficient_history_count": len(result.insufficient_history),
+        "insufficient_history": result.insufficient_history,
+        "invalid_close_count": len(result.invalid_close), "invalid_close": result.invalid_close,
         "required_latest_date": as_of, "securities_total": result.scanned + sum(
             e["kind"] == "read_error" for e in result.errors) + len(result.delisted_excluded),
         "securities_read": result.scanned, "empty_files": result.empty,

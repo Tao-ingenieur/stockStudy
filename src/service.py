@@ -42,7 +42,12 @@ def scan(
                 latest = bars[-1].date
                 result.dates[security] = latest
                 if as_of is None or latest == as_of:
-                    result.matches.extend(screen(security, bars, strategy))
+                    if len(bars) < strategy.required_bars:
+                        result.insufficient_history.append(security.symbol)
+                    elif bars[-1].close <= 0 or bars[-strategy.required_bars].close <= 0:
+                        result.invalid_close.append(security.symbol)
+                    else:
+                        result.matches.extend(screen(security, bars, strategy))
                 else:
                     result.errors.append({
                         "symbol": security.symbol,
@@ -54,5 +59,5 @@ def scan(
             result.errors.append({"symbol": security.symbol, "error": str(exc), "kind": "read_error"})
         if progress:
             progress(index, len(securities))
-    result.matches.sort(key=lambda m: (-m.date.toordinal(), m.security.market, m.security.code))
+    result.matches.sort(key=lambda m: (-m.date.toordinal(), -m.gain_ratio, m.security.market, m.security.code))
     return result

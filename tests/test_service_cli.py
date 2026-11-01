@@ -12,7 +12,7 @@ from stockstudy.names import load_names
 from stockstudy.service import scan
 from stockstudy.readers.tdx import TdxSource
 from stockstudy.strategies import Strategy
-from test_tdx import record
+from test_tdx import record, gain_records
 
 
 class ServiceCliTests(unittest.TestCase):
@@ -29,7 +29,7 @@ class ServiceCliTests(unittest.TestCase):
     def make_data(self, root):
         directory = root / "sh" / "lday"
         directory.mkdir(parents=True)
-        (directory / "sh688001.day").write_bytes(record(low=1333))
+        (directory / "sh688001.day").write_bytes(gain_records())
         return directory
 
     def test_bad_file_isolated_and_as_of_exclusions_recorded(self):
@@ -60,8 +60,10 @@ class ServiceCliTests(unittest.TestCase):
             self.assertEqual(summary["missing_name_count"], 0)
             with (runs[0] / "matches.csv").open(encoding="utf-8-sig", newline="") as stream:
                 row = next(csv.DictReader(stream))
-            self.assertEqual((row["code"], row["low"]), ("688001", "13.33"))
+            self.assertEqual((row["code"], row["close"]), ("688001", "14.00"))
             self.assertTrue(row["name"])
+            self.assertEqual(float(row["gain_pct"]), 40.0)
+            self.assertEqual(row["price_adjustment"], "unadjusted")
 
     def test_cli_partial_failure_exit_code(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -71,6 +73,24 @@ class ServiceCliTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 status = main(["scan", "--data", str(root / "data"), "--output-dir", str(root / "output"), "--quiet"])
             self.assertEqual(status, 2)
+
+    def test_short_history_is_reported_and_scan_help_renders(self):
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as stopped:
+            main(["scan", "--help"])
+        self.assertEqual(stopped.exception.code, 0)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            directory = self.make_data(root / "data")
+            (directory / "sh688001.day").write_bytes(record())
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(["scan", "--data", str(root / "data"),
+                                      "--output-dir", str(root / "output"), "--quiet"]), 0)
+            run = next((root / "output").iterdir())
+            summary = json.loads((run / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["insufficient_history_count"], 1)
+            self.assertEqual(summary["matches"], 0)
+            with (run / "matches.csv").open(encoding="utf-8-sig", newline="") as stream:
+                self.assertIn("gain_pct", next(csv.reader(stream)))
 
     def test_bundled_name_dictionary_keeps_leading_zero(self):
         names = load_names()
