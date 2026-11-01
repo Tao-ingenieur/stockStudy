@@ -85,5 +85,8 @@ def export_report(rows: list[dict], summary: dict, output_dir: Path) -> Path:
         writer.writeheader()
         writer.writerows(rows)
     (run_dir / "matches.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
-    (run_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    export_summary = dict(summary)
+    export_summary.setdefault("export_scope", "all")
+    export_summary.setdefault("export_record_count", len(rows))
+    (run_dir / "summary.json").write_text(json.dumps(export_summary, ensure_ascii=False, indent=2), encoding="utf-8")
     return run_dir

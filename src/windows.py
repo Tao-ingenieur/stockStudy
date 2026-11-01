@@ -8,7 +8,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from . import __version__
-from .application import analyze, export_analysis, make_request
+from .application import analyze, export_analysis, filter_results, make_request, MARKET_FILTERS, STATUS_FILTERS
 from .cli import find_workspace
 from .i18n import translate
 from .service import ScanCancelled
@@ -28,6 +28,7 @@ class StockStudyApp:
         self.running = False
         self.outcome = None
         self.exported_path = None
+        self.exported_info = None
         self.help_window = None
         self.filter_after = None
         self.phase = "ready"
@@ -44,6 +45,8 @@ class StockStudyApp:
         self.trend_filter = tk.BooleanVar(value=True)
         self.as_of = tk.StringVar()
         self.exclude_delisted = tk.BooleanVar(value=True)
+        self.result_market = tk.StringVar(value="all")
+        self.result_status = tk.StringVar(value="all")
         self.search = tk.StringVar()
         self.status = tk.StringVar()
         self.counts = tk.StringVar()
@@ -93,6 +96,8 @@ class StockStudyApp:
         file.add_command(label=self.t("folder"), command=self._choose_data_dir)
         file.add_separator()
         file.add_command(label=self.t("export"), command=self.export_results,
+                         state="normal" if self.outcome and not self.running else "disabled")
+        file.add_command(label=self.t("export_all"), command=lambda: self.export_results(all_results=True),
                          state="normal" if self.outcome and not self.running else "disabled")
         self.export_menu = file
         file.add_separator()
@@ -177,6 +182,21 @@ class StockStudyApp:
         search.pack(fill="x", pady=(0, 8))
         ttk.Label(search, text=self.t("search"), style="Muted.TLabel").pack(side="left")
         ttk.Entry(search, textvariable=self.search, width=26).pack(side="left", padx=8)
+        filters = ttk.Frame(results)
+        filters.pack(fill="x", pady=(0, 8))
+        ttk.Label(filters, text=self.t("market_filter")).pack(side="left")
+        self.market_label = tk.StringVar(value=self.t("market_" + self.result_market.get()))
+        self.market_box = ttk.Combobox(filters, textvariable=self.market_label, state="readonly", width=21,
+                                       values=[self.t("market_" + key) for key in MARKET_FILTERS])
+        self.market_box.pack(side="left", padx=(8, 18))
+        self.market_box.bind("<<ComboboxSelected>>", self._filters_changed)
+        ttk.Label(filters, text=self.t("status_filter")).pack(side="left")
+        self.status_label = tk.StringVar(value=self.t("status_" + self.result_status.get()))
+        self.status_box = ttk.Combobox(filters, textvariable=self.status_label, state="readonly", width=14,
+                                       values=[self.t("status_" + key) for key in STATUS_FILTERS])
+        self.status_box.pack(side="left", padx=(8, 18))
+        self.status_box.bind("<<ComboboxSelected>>", self._filters_changed)
+        ttk.Button(filters, text=self.t("reset_filters"), command=self.reset_filters).pack(side="left")
         footer = ttk.Frame(results)
         footer.pack(side="bottom", fill="x", pady=(8, 0))
         ttk.Label(footer, textvariable=self.preview, style="Muted.TLabel", wraplength=1080).pack(anchor="w")
@@ -246,7 +266,7 @@ class StockStudyApp:
     def _result_columns(self):
         s = self.outcome.summary if self.outcome else {}
         mode = s.get("strategy", self.strategy_id)
-        columns = ["symbol", "name", "end_date", "close"]
+        columns = ["symbol", "name", "listing_status", "end_date", "close"]
         columns += (["fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma"]
                     if mode == "ma-cross" else ["base_date", "base_close", "gain_column"])
         self.table.configure(columns=columns)
@@ -288,7 +308,9 @@ class StockStudyApp:
         else:
             detail = self.t("result_summary", period=s["period"], threshold=s["gain_threshold_pct"], **common)
         detail += "\n" + self.t("adjustment")
-        detail += "\n" + (self.t("exported", path=self.exported_path) if self.exported_path else self.t("not_exported"))
+        detail += "\n" + (self.t("exported_scope", path=self.exported_path,
+                                       scope=self.t("scope_" + self.exported_info[0]), count=self.exported_info[1])
+                           if self.exported_path else self.t("not_exported"))
         if self.phase == "cancelled":
             detail += "\n" + self.t("cancel_note")
         elif self.phase == "failed":
@@ -367,6 +389,7 @@ class StockStudyApp:
                     if kind == "done":
                         self.outcome = value
                         self.exported_path = None
+                        self.exported_info = None
                         self.phase = "partial" if value.summary["read_errors"] else "done"
                         self.progress_value = 100
                         self.progress["value"] = 100
@@ -386,6 +409,27 @@ class StockStudyApp:
             self.cancel_button.configure(state="disabled")
             self._refresh_text()
 
+    def _filter_values(self):
+        return dict(market=self.result_market.get(), status=self.result_status.get(), query=self.search.get().strip())
+
+    def _filtered_rows(self):
+        return filter_results(self.outcome.rows, **self._filter_values()) if self.outcome else []
+
+    def _filters_changed(self, _event=None):
+        markets = list(MARKET_FILTERS)
+        statuses = list(STATUS_FILTERS)
+        self.result_market.set(markets[[self.t("market_" + key) for key in markets].index(self.market_label.get())])
+        self.result_status.set(statuses[[self.t("status_" + key) for key in statuses].index(self.status_label.get())])
+        self._render_rows()
+
+    def reset_filters(self):
+        self.result_market.set("all")
+        self.result_status.set("all")
+        self.market_label.set(self.t("market_all"))
+        self.status_label.set(self.t("status_all"))
+        self.search.set("")
+        self._render_rows()
+
     def _schedule_filter(self, *_args):
         if self.filter_after is not None:
             self.root.after_cancel(self.filter_after)
@@ -400,11 +444,10 @@ class StockStudyApp:
         if self.outcome is None:
             self.preview.set(self.t("preview_empty"))
             return
-        term = self.search.get().strip().lower()
-        rows = [row for row in self.outcome.rows if not term or term in " ".join(
-            str(row[key]) for key in ("market", "code", "name", "date")).lower()]
+        rows = self._filtered_rows()
         for i, row in enumerate(rows[:2000]):
-            values = [row["market"] + row["code"], row["name"] or "—", row["date"], row["close"]]
+            values = [row["market"] + row["code"], row["name"] or "—",
+                      self.t("status_" + row.get("status", "unknown")), row["date"], row["close"]]
             if self.outcome.summary.get("strategy") == "ma-cross":
                 values += [row[key] or "—" for key in ("fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma")]
             else:
@@ -412,7 +455,7 @@ class StockStudyApp:
             self.table.insert("", "end", values=values, tags=("alternate",) if i % 2 else ())
         self.preview.set(self.t("preview", shown=min(len(rows), 2000), filtered=len(rows), total=len(self.outcome.rows)))
 
-    def export_results(self):
+    def export_results(self, *, all_results=False):
         if self.outcome is None or self.running:
             return
         folder = filedialog.askdirectory(parent=self.root, title=self.t("export_folder"),
@@ -420,7 +463,9 @@ class StockStudyApp:
         if not folder:
             return
         try:
-            self.exported_path = export_analysis(self.outcome, Path(folder))
+            path = export_analysis(self.outcome, Path(folder), filters=None if all_results else self._filter_values())
+            self.exported_path = path
+            self.exported_info = ("all", len(self.outcome.rows)) if all_results else ("filtered", len(self._filtered_rows()))
         except (OSError, ValueError) as exc:
             messagebox.showerror(self.t("export_failed"), str(exc), parent=self.root)
         self._refresh_text()

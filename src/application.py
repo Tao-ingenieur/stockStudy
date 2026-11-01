@@ -68,5 +68,28 @@ def analyze(request: AnalysisRequest, *, progress: Callable[[int, int], None] | 
     return AnalysisOutcome(summary, rows)
 
 
-def export_analysis(outcome: AnalysisOutcome, output: Path) -> Path:
-    return export_report(outcome.rows, outcome.summary, output)
+MARKET_FILTERS = {"all": None, "sh": {"sh"}, "sz": {"sz"}, "bj": {"bj"}, "shsz": {"sh", "sz"}}
+STATUS_FILTERS = ("all", "listed", "delisted", "unknown")
+
+
+def filter_results(rows: list[dict], *, market="all", status="all", query="") -> list[dict]:
+    """Filter completed results in memory; do not alter the analysis or its order."""
+    if market not in MARKET_FILTERS or status not in STATUS_FILTERS:
+        raise ValueError("Unknown result filter")
+    markets = MARKET_FILTERS[market]
+    term = query.strip().casefold()
+    return [row for row in rows
+            if (markets is None or row["market"] in markets)
+            and (status == "all" or row.get("status", "unknown") == status)
+            and (not term or term in (row["market"] + row["code"] + " " +
+                                      " ".join(str(row.get(key, "")) for key in
+                                               ("market", "code", "name", "date"))).casefold())]
+
+
+def export_analysis(outcome: AnalysisOutcome, output: Path, *, filters: dict | None = None) -> Path:
+    rows = filter_results(outcome.rows, **filters) if filters is not None else outcome.rows
+    summary = dict(outcome.summary)
+    summary.update(export_scope="filtered" if filters is not None else "all", export_record_count=len(rows))
+    if filters is not None:
+        summary["result_filters"] = dict(filters)
+    return export_report(rows, summary, output)

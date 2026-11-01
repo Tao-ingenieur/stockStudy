@@ -46,8 +46,8 @@ TEXT = {
     "base_date": ("基准日期", "Base Date"), "base_close": ("基准收盘价", "Base Close"),
     "gain_column": ("涨幅", "Gain"),
     "help_body": (
-        "1. 在分析设置中选择通达信 ZIP 或日线数据目录，可设置末条日期和退市过滤。\n\n2. 从策略下拉框选择策略，下面的分析策略区域显示该策略的参数。区间涨幅默认比较20条记录前的收盘价，阈值为严格超过10%；N=1比较相邻两条记录。\n\n3. 点击开始分析，结果显示在表格中。搜索只影响预览，最多显示2000条；导出包含全部结果。\n\n4. 分析不会自动保存文件。点击导出分析结果并选择目录，生成 CSV、JSON 和汇总文件。关闭程序后未导出的结果不保留。\n\n5. 末条日期仅要求股票文件的最后一条记录恰为该日期，不是历史回放。留空时不同股票的截止日期可能不同。状态未知的股票仍参与分析。\n\n6. 复权情况在结果摘要中显示。当前通达信日线未提供复权因子，分红送转可能影响价格比较。筛选结果不代表买入建议。",
-        "1. Choose a Tongdaxin ZIP or daily-bar folder in Analysis Settings. Optionally set a latest date and exclude confirmed delisted stocks.\n\n2. Select a strategy from the dropdown. Its parameters appear in Analysis Strategy. Interval Gain defaults to a 20-record period and a gain strictly above 10%. N=1 compares adjacent records.\n\n3. Start analysis to populate the table. Search affects the preview only (up to 2,000 rows); export includes all results.\n\n4. Analysis does not save files automatically. Choose Export Results and a folder to create CSV, JSON and summary files. Unexported results are lost when the app closes.\n\n5. Latest date requires the final bar to match that date; it is not a historical replay. Blank allows stocks with different final dates. Unknown listing status does not exclude a stock.\n\n6. Adjustment availability appears in the result summary. Current Tongdaxin bars have no adjustment factors; corporate actions may distort price changes. Screening is not a buy recommendation."
+        "1. 在分析设置中选择通达信 ZIP 或日线数据目录，可设置末条日期和退市过滤。\n\n2. 从策略下拉框选择策略，下面的分析策略区域显示该策略的参数。区间涨幅默认比较20条记录前的收盘价，阈值为严格超过10%；N=1比较相邻两条记录。\n\n3. 点击开始分析，结果显示在表格中。搜索只影响预览，最多显示2000条；导出包含全部结果。\n\n4. 分析不会自动保存文件。点击导出筛选结果或文件菜单中的导出全部结果并选择目录，生成 CSV、JSON 和汇总文件。关闭程序后未导出的结果不保留。\n\n5. 末条日期仅要求股票文件的最后一条记录恰为该日期，不是历史回放。留空时不同股票的截止日期可能不同。状态未知的股票仍参与分析。\n\n6. 复权情况在结果摘要中显示。当前通达信日线未提供复权因子，分红送转可能影响价格比较。筛选结果不代表买入建议。",
+        "1. Choose a Tongdaxin ZIP or daily-bar folder in Analysis Settings. Optionally set a latest date and exclude confirmed delisted stocks.\n\n2. Select a strategy from the dropdown. Its parameters appear in Analysis Strategy. Interval Gain defaults to a 20-record period and a gain strictly above 10%. N=1 compares adjacent records.\n\n3. Start analysis to populate the table. Search affects the preview only (up to 2,000 rows); export includes all results.\n\n4. Analysis does not save files automatically. Choose Export Filtered or File > Export All and a folder to create CSV, JSON and summary files. Unexported results are lost when the app closes.\n\n5. Latest date requires the final bar to match that date; it is not a historical replay. Blank allows stocks with different final dates. Unknown listing status does not exclude a stock.\n\n6. Adjustment availability appears in the result summary. Current Tongdaxin bars have no adjustment factors; corporate actions may distort price changes. Screening is not a buy recommendation."
     ),
 }
 
@@ -73,6 +73,29 @@ TEXT["help_body"] = tuple(body + extra for body, extra in zip(TEXT["help_body"],
     "\n\n双均线金叉：默认5日均线上穿20日均线，上一条短线不高于长线、最新短线严格高于长线。默认勾选收盘价严格高于120日均线；可取消过滤或修改周期。仅金叉发生的最新记录命中，已维持多日的多头排列不算新金叉。开启默认过滤需120条日线，关闭时需21条。",
     "\n\nMA Crossover: defaults to the 5-bar SMA crossing above the 20-bar SMA on the latest record. Previous fast SMA must be at or below slow SMA. Close above the 120-bar trend SMA is enabled by default and can be disabled. A continuing bullish alignment is not a new crossover. Default history required: 120 bars with the filter, 21 without it."
 )))
+
+
+TEXT.update({
+    "market_filter": ("市场", "Market"),
+    "market_all": ("全部市场", "All Markets"), "market_sh": ("上海 (sh)", "Shanghai (sh)"),
+    "market_sz": ("深圳 (sz)", "Shenzhen (sz)"), "market_bj": ("北京 (bj)", "Beijing (bj)"),
+    "market_shsz": ("沪深 (sh+sz)", "Shanghai + Shenzhen"),
+    "status_filter": ("上市状态", "Listing Status"), "status_all": ("全部状态", "All Statuses"),
+    "status_listed": ("仍上市", "Listed"), "status_delisted": ("已退市", "Delisted"),
+    "status_unknown": ("未知", "Unknown"), "listing_status": ("上市状态", "Listing Status"),
+    "reset_filters": ("重置筛选", "Reset Filters"),
+    "export": ("导出筛选结果", "Export Filtered"),
+    "export_all": ("导出全部结果", "Export All"),
+    "preview": ("筛选结果 {filtered:,} 条，显示 {shown:,} 条；原始结果 {total:,} 条。导出筛选结果包含全部匹配行，不限预览条数。", "Filtered: {filtered:,}; showing {shown:,} of {total:,} original rows. Filtered export includes every match, beyond the preview limit."),
+    "exported_scope": ("最近导出：{scope}，{count:,} 条。目录：{path}", "Last export: {scope}, {count:,} rows. Folder: {path}"),
+    "scope_filtered": ("筛选结果", "Filtered results"), "scope_all": ("全部结果", "All results"),
+})
+TEXT["help_body"] = tuple(body.replace(old, new) + extra for body, old, new, extra in zip(TEXT["help_body"],
+    ("搜索只影响预览，最多显示2000条；导出包含全部结果。", "Search affects the preview only (up to 2,000 rows); export includes all results."),
+    ("结果可按市场、上市状态及关键词组合筛选，最多预览2000条。", "Combine market, listing-status and keyword filters; the preview shows up to 2,000 rows."),
+    ("\n\n结果筛选不会重新扫描或修改原始结果。市场支持上海、深圳、北京及沪深，状态支持仍上市、已退市和未知。重置筛选恢复全部结果。导出筛选结果保存所有符合条件的行；文件菜单中的导出全部结果不受筛选影响。汇总保留原始分析统计，并单独记录导出范围、导出条数和筛选条件。",
+     "\n\nResult filters do not rescan or modify the original results. Reset Filters restores all rows. Export Filtered saves all matching rows; File > Export All ignores result filters. Summaries retain original analysis statistics and separately record export scope, row count and filter criteria.")
+))
 
 
 def translate(language, key, **values):
