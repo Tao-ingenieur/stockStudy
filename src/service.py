@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Callable
 
-from .models import ScanResult, Security, SecurityInfo
+from .models import ScanResult
 from .readers.base import DailyBarSource
 from .strategies import Strategy, screen, valid_closes
 
@@ -17,8 +17,6 @@ def scan(
     as_of: date | None = None,
     progress: Callable[[int, int], None] | None = None,
     cancelled: Callable[[], bool] | None = None,
-    security_info: dict[Security, SecurityInfo] | None = None,
-    include_delisted: bool = False,
 ) -> ScanResult:
     """as_of requires each security's last record to have exactly that date."""
     result = ScanResult()
@@ -27,22 +25,6 @@ def scan(
     for index, security in enumerate(securities, start=1):
         if cancelled and cancelled():
             raise ScanCancelled()
-        info = security_info.get(security) if security_info is not None else None
-        if info and info.status == "delisted" and not include_delisted:
-            # The date belongs to the dataset, independently of listing filters.
-            if as_of is None:
-                try:
-                    tail = source.read_bars(security, 1)
-                    if tail:
-                        dataset_latest = max(dataset_latest or tail[-1].date, tail[-1].date)
-                except (OSError, ValueError, EOFError, RuntimeError):
-                    pass  # Excluded securities do not contribute read failures.
-            result.delisted_excluded.append(security.symbol)
-            if progress:
-                progress(index, len(securities))
-            continue
-        if security_info is not None and (info is None or info.status == "unknown"):
-            result.unknown_status.append(security.symbol)
         try:
             bars = source.read_bars(security, strategy.required_bars)
             if not bars:

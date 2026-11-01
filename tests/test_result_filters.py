@@ -17,18 +17,18 @@ class ResultFilterTests(unittest.TestCase):
         self.rows = [row("sh", "600000", name="Shanghai"), row("sz", "000001", name="Bank"),
                      row("bj", "920001", "unknown", "Beijing"), row("sh", "600001", "delisted", "Old")]
 
-    def test_markets_and_combined_status_search_preserve_order(self):
+    def test_markets_and_combined_search_preserve_order(self):
         self.assertEqual(filter_results(self.rows, market="bj"), [self.rows[2]])
         self.assertEqual(filter_results(self.rows, market="shsz"), [self.rows[0], self.rows[1], self.rows[3]])
-        self.assertEqual(filter_results(self.rows, market="sh", status="delisted", query=" OLD "), [self.rows[3]])
-        self.assertEqual(filter_results(self.rows, market="bj", status="listed"), [])
+        self.assertEqual(filter_results(self.rows, market="sh", query=" OLD "), [self.rows[3]])
+        self.assertEqual(filter_results(self.rows, market="bj"), [self.rows[2]])
         self.assertEqual(filter_results(self.rows, query="2026-10-30"), self.rows)
         self.assertEqual(filter_results(self.rows, query="SZ000001"), [self.rows[1]])
 
-    def test_missing_status_is_unknown_and_invalid_filters_rejected(self):
+    def test_missing_status_is_preserved_and_invalid_filters_rejected(self):
         missing = dict(self.rows[0]); missing.pop("status")
-        self.assertEqual(filter_results([missing], status="unknown"), [missing])
-        for filters in ({"market": "invalid"}, {"status": "invalid"}):
+        self.assertEqual(filter_results([missing]), [missing])
+        for filters in ({"market": "invalid"}, {"board": "invalid"}):
             with self.assertRaises(ValueError):
                 filter_results(self.rows, **filters)
 
@@ -38,7 +38,7 @@ class ResultFilterTests(unittest.TestCase):
         outcome = AnalysisOutcome(summary, rows)
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "exports"
-            path = export_analysis(outcome, root, filters=dict(market="bj", status="unknown", query=""))
+            path = export_analysis(outcome, root, filters=dict(market="bj", query=""))
             exported = json.loads((path / "matches.json").read_text(encoding="utf-8"))
             meta = json.loads((path / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(len(exported), 2105)
@@ -53,7 +53,7 @@ class ResultFilterTests(unittest.TestCase):
         outcome = AnalysisOutcome(dict(strategy="gain", matches=4), self.rows)
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            empty = export_analysis(outcome, root, filters=dict(market="bj", status="listed"))
+            empty = export_analysis(outcome, root, filters=dict(market="bj", query="no matches"))
             self.assertEqual(json.loads((empty / "matches.json").read_text(encoding="utf-8")), [])
             self.assertIn("gain_pct", (empty / "matches.csv").read_text(encoding="utf-8-sig"))
             all_rows = export_analysis(outcome, root)

@@ -65,6 +65,7 @@ class DesktopWidgetTests(unittest.TestCase):
 
     def test_strategy_controls_and_defaults(self):
         self.assertFalse(hasattr(self.app, "comparison_box"))
+        self.assertFalse(hasattr(self.app, "delisted_check"))
         self.assertIn("9.9%", self.app.t("help_body"))
         self.assertEqual(self.app.period.get(), "20")
         self.assertEqual(self.app.threshold.get(), "10")

@@ -45,7 +45,6 @@ class StockStudyApp:
         self.trend_period = tk.StringVar(value="120")
         self.trend_filter = tk.BooleanVar(value=True)
         self.as_of = tk.StringVar()
-        self.exclude_delisted = tk.BooleanVar(value=True)
         self.result_market = tk.StringVar(value="all")
         self.result_board = tk.StringVar(value="all")
         self.search = tk.StringVar()
@@ -156,8 +155,6 @@ class StockStudyApp:
         self.date_entry = ttk.Entry(options, textvariable=self.as_of, width=12)
         self.date_entry.pack(side="left", padx=8)
         ttk.Label(options, text=self.t("date_hint"), style="Muted.TLabel").pack(side="left")
-        self.delisted_check = ttk.Checkbutton(settings, text=self.t("exclude"), variable=self.exclude_delisted)
-        self.delisted_check.grid(row=2, column=0, columnspan=4, sticky="w", pady=3)
 
         self.strategy_frame = ttk.LabelFrame(container, text=self.t("strategy_section"), padding=(12, 8))
         self.strategy_frame.pack(fill="x", pady=(0, 10))
@@ -217,7 +214,7 @@ class StockStudyApp:
         horizontal.grid(row=1, column=0, sticky="ew")
         self.table.tag_configure("alternate", background="#f2f6fc")
         self.inputs = [self.data_entry, self.zip_button, self.directory_button,
-                       self.date_entry, self.delisted_check] + self.strategy_inputs
+                       self.date_entry] + self.strategy_inputs
         self._set_running(self.running)
         self._refresh_text()
         self._render_rows()
@@ -301,8 +298,7 @@ class StockStudyApp:
             return
         s = self.outcome.summary
         self.counts.set(self.t("stats", matches=s["matched_securities"], read=s["securities_read"], errors=s["read_errors"]))
-        common = dict(delisted=s["delisted_excluded_count"], unknown=s["unknown_listing_status_count"],
-                      short=s["insufficient_history_count"], dates=s["date_mismatches"], invalid=s["invalid_close_count"])
+        common = dict(short=s["insufficient_history_count"], dates=s["date_mismatches"], invalid=s["invalid_close_count"])
         if s.get("strategy") == "ma-cross":
             trend = self.t("trend_on", period=s["trend_period"]) if s["trend_filter"] else self.t("trend_off")
             detail = self.t("ma_result", fast=s["fast_period"], slow=s["slow_period"], trend=trend, **common)
@@ -349,7 +345,7 @@ class StockStudyApp:
             return
         try:
             request = make_request(self.data.get(), self.period.get(), self.threshold.get(), self.as_of.get(),
-                                   include_delisted=not self.exclude_delisted.get(), language=self.language.get(),
+                                   language=self.language.get(),
                                    strategy_name=self.strategy_id, fast_period=self.fast_period.get(),
                                    slow_period=self.slow_period.get(), trend_filter=self.trend_filter.get(),
                                    trend_period=self.trend_period.get())
@@ -412,7 +408,7 @@ class StockStudyApp:
 
     def _filter_values(self):
         return dict(market=self.result_market.get(), board=self.result_board.get(),
-                    status="all", query=self.search.get().strip())
+                    query=self.search.get().strip())
 
     def _filtered_rows(self):
         return filter_results(self.outcome.rows, **self._filter_values()) if self.outcome else []

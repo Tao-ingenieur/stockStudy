@@ -39,7 +39,8 @@ class SecurityMetadataTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_security_info(path)
 
-    def test_delisted_filter_is_explicit_unknown_is_retained(self):
+    def test_listing_status_is_metadata_only(self):
+        from stockstudy.reports import prepare_report
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             files = {"sz000004": "delisted", "bj920001": "unknown", "sh688001": "listed"}
@@ -50,13 +51,12 @@ class SecurityMetadataTests(unittest.TestCase):
                 target.write_bytes(gain_records())
                 info[Security(symbol[:2], symbol[2:])] = SecurityInfo(symbol, flag)
             with TdxSource(root) as source:
-                result = scan(source, Strategy(), security_info=info)
-                self.assertEqual(result.delisted_excluded, ["sz000004"])
-                self.assertEqual(result.unknown_status, ["bj920001"])
-                self.assertEqual(len(result.matches), 2)
-                included = scan(source, Strategy(), security_info=info, include_delisted=True)
-                self.assertEqual(len(included.matches), 3)
-                self.assertEqual(included.delisted_excluded, [])
+                result = scan(source, Strategy())
+            self.assertEqual(len(result.matches), 3)
+            rows, summary = prepare_report(result, Strategy(), {}, source_name="tdx",
+                                            data_path=root, as_of=None, security_info=info)
+            self.assertEqual({row["status"] for row in rows}, {"listed", "delisted", "unknown"})
+            self.assertNotIn("delisted_excluded_count", summary)
 
     def test_future_delisting_and_relisting_use_effective_dates(self):
         rows = {}

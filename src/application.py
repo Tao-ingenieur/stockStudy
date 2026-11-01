@@ -20,7 +20,6 @@ class AnalysisRequest:
     data: Path
     strategy: Strategy
     as_of: date | None = None
-    include_delisted: bool = False
 
 
 @dataclass(frozen=True)
@@ -29,7 +28,7 @@ class AnalysisOutcome:
     rows: list[dict]
 
 
-def make_request(data, period, threshold, as_of, include_delisted=False, language="zh",
+def make_request(data, period, threshold, as_of, language="zh",
                  strategy_name="gain", fast_period="5", slow_period="20", trend_filter=True, trend_period="120") -> AnalysisRequest:
     if not data.strip():
         raise ValueError(translate(language, "missing_data"))
@@ -48,7 +47,7 @@ def make_request(data, period, threshold, as_of, include_delisted=False, languag
         day = date.fromisoformat(as_of.strip()) if as_of.strip() else None
     except ValueError:
         raise ValueError(translate(language, "bad_date")) from None
-    return AnalysisRequest(data_path, strategy, day, include_delisted)
+    return AnalysisRequest(data_path, strategy, day)
 
 
 def analyze(request: AnalysisRequest, *, progress: Callable[[int, int], None] | None = None,
@@ -57,8 +56,7 @@ def analyze(request: AnalysisRequest, *, progress: Callable[[int, int], None] | 
     names = {security: info.name for security, info in security_info.items()}
     source = open_source("tdx", request.data)
     try:
-        result = scan(source, request.strategy, as_of=request.as_of, progress=progress, cancelled=cancelled,
-                      security_info=security_info, include_delisted=request.include_delisted)
+        result = scan(source, request.strategy, as_of=request.as_of, progress=progress, cancelled=cancelled)
     finally:
         source.close()
     if cancelled and cancelled():
@@ -70,19 +68,17 @@ def analyze(request: AnalysisRequest, *, progress: Callable[[int, int], None] | 
 
 
 MARKET_FILTERS = {"all": None, "sh": {"sh"}, "sz": {"sz"}, "bj": {"bj"}, "shsz": {"sh", "sz"}}
-STATUS_FILTERS = ("all", "listed", "delisted", "unknown")
 
 
-def filter_results(rows: list[dict], *, market="all", status="all", query="", board="all") -> list[dict]:
+def filter_results(rows: list[dict], *, market="all", query="", board="all") -> list[dict]:
     """Filter completed results in memory; do not alter the analysis or its order."""
-    if market not in MARKET_FILTERS or status not in STATUS_FILTERS or board not in BOARD_FILTERS:
+    if market not in MARKET_FILTERS or board not in BOARD_FILTERS:
         raise ValueError("Unknown result filter")
     markets = MARKET_FILTERS[market]
     term = query.strip().casefold()
     return [row for row in rows
             if (markets is None or row["market"] in markets)
             and (board == "all" or board_for(row["market"], row["code"]) == board)
-            and (status == "all" or row.get("status", "unknown") == status)
             and (not term or term in (row["market"] + row["code"] + " " +
                                       " ".join(str(row.get(key, "")) for key in
                                                ("market", "code", "name", "date"))).casefold())]

@@ -48,17 +48,13 @@ def prepare_report(
         "insufficient_history": result.insufficient_history,
         "invalid_close_count": len(result.invalid_close), "invalid_close": result.invalid_close,
         "required_latest_date": result.effective_date.isoformat() if result.effective_date else as_of, "securities_total": result.scanned + sum(
-            e["kind"] == "read_error" for e in result.errors) + len(result.delisted_excluded),
+            e["kind"] == "read_error" for e in result.errors),
         "securities_read": result.scanned, "empty_files": result.empty,
         "matches": len(rows), "matched_securities": len({(r["market"], r["code"]) for r in rows}),
         "latest_date_counts": dict(sorted(Counter(d.isoformat() for d in result.dates.values()).items())),
         "missing_name_count": sum(s not in names for s in result.dates),
         "read_errors": sum(e["kind"] == "read_error" for e in result.errors),
         "date_mismatches": sum(e["kind"] == "date_mismatch" for e in result.errors),
-        "delisted_excluded_count": len(result.delisted_excluded),
-        "delisted_excluded": result.delisted_excluded,
-        "unknown_listing_status_count": len(result.unknown_status),
-        "unknown_listing_status": result.unknown_status,
         "errors": result.errors,
     }
     if strategy.name == "gain":

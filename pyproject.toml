@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "stockstudy"
-version = "0.9.2"
+version = "0.9.3"
 description = "Local daily-bar stock screening with pluggable data sources"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -59,5 +59,3 @@ class ScanResult:
     insufficient_history: list[str] = field(default_factory=list)
     invalid_close: list[str] = field(default_factory=list)
     dates: dict[Security, date] = field(default_factory=dict)
-    delisted_excluded: list[str] = field(default_factory=list)
-    unknown_status: list[str] = field(default_factory=list)

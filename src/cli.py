@@ -49,7 +49,6 @@ def main(argv=None) -> int:
     command.add_argument("--names", type=Path, help="自定义 market,code,name,status,name_checked_at CSV")
     command.add_argument("--output-dir", type=Path, help="明确指定后才导出结果到此目录；默认不保存文件")
     command.add_argument("--quiet", action="store_true")
-    command.add_argument("--include-delisted", action="store_true", help="包含已确认退市股票（默认排除）；未知状态仍保留并提示")
     args = parser.parse_args(argv)
     if args.command == "sources":
         print("tdx       implemented: 通达信 .day 目录 / ZIP（沪深北股票）")
@@ -74,8 +73,7 @@ def main(argv=None) -> int:
             def progress(done, total):
                 if not args.quiet and (done % 1000 == 0 or done == total):
                     print(f"Scanned {done}/{total}", file=sys.stderr)
-            result = scan(source, strategy, as_of=args.as_of, progress=progress,
-                          security_info=security_info, include_delisted=args.include_delisted)
+            result = scan(source, strategy, as_of=args.as_of, progress=progress)
         finally:
             source.close()
         rows, summary = prepare_report(
@@ -91,7 +89,6 @@ def main(argv=None) -> int:
     failures = sum(e["kind"] == "read_error" for e in result.errors)
     exclusions = sum(e["kind"] == "date_mismatch" for e in result.errors)
     print(f"Read {result.scanned}; matches {len(result.matches)}; read errors {failures}; date exclusions {exclusions}")
-    print(f"Delisted excluded {len(result.delisted_excluded)}; unknown listing status {len(result.unknown_status)}")
     print(f"Insufficient history {len(result.insufficient_history)}; invalid close {len(result.invalid_close)}; price basis: unadjusted daily prices")
     if report_dir is not None:
         print(f"Reports: {report_dir.resolve()}")
