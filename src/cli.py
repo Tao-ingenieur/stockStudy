@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from . import __version__
-from .names import load_names
+from .names import load_security_info
 from .reports import write_report
 from .service import scan
 from .readers import SOURCE_FACTORIES, open_source
@@ -46,9 +46,10 @@ def main(argv=None) -> int:
     command.add_argument("--names", type=Path, help="自定义 market,code,name CSV")
     command.add_argument("--output-dir", type=Path, help="分析结果根目录")
     command.add_argument("--quiet", action="store_true")
+    command.add_argument("--include-delisted", action="store_true", help="包含已确认退市股票（默认排除）；未知状态仍保留并提示")
     args = parser.parse_args(argv)
     if args.command == "sources":
-        print("tdx       implemented: 通达信 .day 目录 / ZIP（沪深股票）")
+        print("tdx       implemented: 通达信 .day 目录 / ZIP（沪深北股票）")
         print("csv       planned: 标准 CSV 文件")
         print("akshare   planned: AKShare 数据适配器")
         print("tushare   planned: Tushare 数据适配器")
@@ -62,19 +63,22 @@ def main(argv=None) -> int:
             args.strategy, args.lookback or (100 if args.strategy == "pattern-drop" else 1),
             Decimal(args.drop_threshold), tuple(int(n.strip()) for n in args.reference_days.split(",")),
         )
-        names = load_names(args.names)
+        security_info = load_security_info(args.names)
+        names = {security: info.name for security, info in security_info.items()}
         source = open_source(args.source, data_path)
         try:
             def progress(done, total):
                 if not args.quiet and (done % 1000 == 0 or done == total):
                     print(f"Scanned {done}/{total}", file=sys.stderr)
-            result = scan(source, strategy, as_of=args.as_of, progress=progress)
+            result = scan(source, strategy, as_of=args.as_of, progress=progress,
+                          security_info=security_info, include_delisted=args.include_delisted)
         finally:
             source.close()
         report_dir = write_report(
             result, strategy, names, output_dir,
             source_name=args.source, data_path=data_path,
             as_of=args.as_of.isoformat() if args.as_of else None,
+            security_info=security_info,
         )
     except (OSError, ValueError, InvalidOperation, zipfile.BadZipFile, EOFError, RuntimeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -82,6 +86,7 @@ def main(argv=None) -> int:
     failures = sum(e["kind"] == "read_error" for e in result.errors)
     exclusions = sum(e["kind"] == "date_mismatch" for e in result.errors)
     print(f"Read {result.scanned}; matches {len(result.matches)}; read errors {failures}; date exclusions {exclusions}")
+    print(f"Delisted excluded {len(result.delisted_excluded)}; unknown listing status {len(result.unknown_status)}")
     print(f"Reports: {report_dir.resolve()}")
     # Date exclusions are reported, but are not data read failures.
     return 2 if failures else 0

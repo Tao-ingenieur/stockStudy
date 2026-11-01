@@ -11,7 +11,7 @@
 | `readers/base.py` | 数据源 Protocol |
 | `readers/tdx.py` | 本地 `.day` 与 ZIP 适配 |
 | `service.py` | 扫描协调、单股票错误隔离、数据日期过滤 |
-| `names.py` | 可替换的证券名称元数据 |
+| `names.py` | 可替换的证券名称、上市状态和日期元数据 |
 | `reports.py` | 可追踪参数和数据状态的输出 |
 | `cli.py` | 参数与退出码；不包含业务规则 |
 | `application.py` | 图形界面的分析请求、校验与结果操作 |

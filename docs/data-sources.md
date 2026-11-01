@@ -22,3 +22,5 @@
 4. 在真实样本上比对字段、复权与交易日语义，再开放为已支持来源。
 
 CSV 候选字段为 `market,code,date,open,high,low,close,amount,volume`。这只是设计约定，当前还没有 CSV 行情导入命令。证券名称 CSV 属于元数据，与行情 CSV 是不同用途。
+
+证券状态独立于行情日期：来自 `security_names.csv` 的 `true/false/unknown` 三态标识用于当前证券范围过滤。仅明确确认摘牌才默认排除；未知状态保留并披露。参考 README 的来源和更新流程。

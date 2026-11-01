@@ -26,6 +26,16 @@ class DailyBar:
 
 
 @dataclass(frozen=True, slots=True)
+class SecurityInfo:
+    name: str
+    is_delisted: bool | None = None
+    listing_date: date | None = None
+    delisting_date: date | None = None
+    status_source: str = ""
+    status_checked_at: date | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Match:
     security: Security
     date: date
@@ -43,3 +53,5 @@ class ScanResult:
     scanned: int = 0
     empty: int = 0
     dates: dict[Security, date] = field(default_factory=dict)
+    delisted_excluded: list[str] = field(default_factory=list)
+    unknown_status: list[str] = field(default_factory=list)

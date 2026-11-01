@@ -16,7 +16,9 @@ class TdxTests(unittest.TestCase):
     def test_star_market_and_stock_universe(self):
         self.assertEqual(stock_security("sh688001.day"), Security("sh", "688001"))
         self.assertEqual(stock_security("SZ300001.DAY"), Security("sz", "300001"))
-        for name in ("sh000001.day", "sz399001.day", "bj920001.day", "sh688001.day.bak"):
+        self.assertEqual(stock_security("bj920001.day"), Security("bj", "920001"))
+        self.assertEqual(stock_security("bj830799.day"), Security("bj", "830799"))
+        for name in ("sh000001.day", "sz399001.day", "bj899050.day", "sh688001.day.bak"):
             self.assertIsNone(stock_security(name))
 
     def test_record_units_and_validation(self):

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
-from .models import ScanResult, Security
+from .models import ScanResult, Security, SecurityInfo
 from .strategies import Strategy
 
 
@@ -17,6 +17,7 @@ def price(cents: int | None) -> str:
 def write_report(
     result: ScanResult, strategy: Strategy, names: dict[Security, str], output_dir: Path,
     *, source_name: str, data_path: Path, as_of: str | None,
+    security_info: dict[Security, SecurityInfo] | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
@@ -25,16 +26,18 @@ def write_report(
     rows = []
     for item in result.matches:
         high = item.reference_high
+        info = security_info.get(item.security) if security_info is not None else None
         rows.append({
             "market": item.security.market, "code": item.security.code,
             "name": names.get(item.security, ""), "date": item.date.isoformat(),
+            "is_delisted": "unknown" if info is None or info.is_delisted is None else str(info.is_delisted).lower(),
             "low": price(item.low), "pattern": item.pattern,
             "reference_days": item.reference_days,
             "reference_date": item.reference_date.isoformat() if item.reference_date else "",
             "reference_high": price(high),
             "drop_ratio": round((high - item.low) / high, 8) if high else None,
         })
-    columns = ["market", "code", "name", "date", "low", "pattern", "reference_days",
+    columns = ["market", "code", "name", "is_delisted", "date", "low", "pattern", "reference_days",
                "reference_date", "reference_high", "drop_ratio"]
     with (run_dir / "matches.csv").open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)
@@ -48,13 +51,17 @@ def write_report(
         "strategy": strategy.name, "lookback": strategy.lookback,
         "drop_threshold": str(strategy.drop_threshold), "reference_days": list(strategy.reference_days),
         "required_latest_date": as_of, "securities_total": result.scanned + sum(
-            e["kind"] == "read_error" for e in result.errors),
+            e["kind"] == "read_error" for e in result.errors) + len(result.delisted_excluded),
         "securities_read": result.scanned, "empty_files": result.empty,
         "matches": len(rows), "matched_securities": len({(r["market"], r["code"]) for r in rows}),
         "latest_date_counts": dict(sorted(Counter(d.isoformat() for d in result.dates.values()).items())),
         "missing_name_count": sum(s not in names for s in result.dates),
         "read_errors": sum(e["kind"] == "read_error" for e in result.errors),
         "date_mismatches": sum(e["kind"] == "date_mismatch" for e in result.errors),
+        "delisted_excluded_count": len(result.delisted_excluded),
+        "delisted_excluded": result.delisted_excluded,
+        "unknown_listing_status_count": len(result.unknown_status),
+        "unknown_listing_status": result.unknown_status,
         "errors": result.errors,
     }
     (run_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

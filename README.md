@@ -82,9 +82,9 @@ uv pip install -e .
 
 `--data` 可指向该目录、其外层含 `vipdoc` 的目录或 ZIP。不要将多个日期的数据副本混在同一个扫描目录中；重复股票文件会报错，避免静默选错数据。
 
-当前股票范围：上海 `6` 开头，深圳 `00`、`30` 开头，包含科创板。即使 ZIP 含北交所、指数、基金等数据，当前筛选也不包含这些品种。没有 ST 过滤。成交量内部单位为股，价格内部单位为整数分，成交额为元。
+当前股票范围：上海 `6` 开头，深圳 `00`、`30` 开头，北京 `92` 开头及历史 `43`、`83`、`87` 开头，包含科创板、创业板。指数、基金和可转债不纳入筛选。默认排除已确认退市股票，未知状态仍参与分析并记录数量；没有 ST 过滤。成交量内部单位为股，价格内部单位为整数分，成交额为元。
 
-股票名称来自 `resources/security_names.csv`，是随项目提供的本地参考表，**不是联网更新的最新证券名录**。缺失名称不妨碍筛选，报告中名称留空，并在汇总中记录缺失数量。自定义名称表需 UTF-8 编码，列名为 `market,code,name`，代码必须保留六位：
+股票名称来自 `resources/security_names.csv`，是有来源和核对日期的本地证券信息快照。扫描时不联网查询，快照可能滞后于实际上市状态。缺失名称不妨碍筛选，报告中名称留空，并在汇总中记录缺失数量。自定义名称表需 UTF-8 编码，列名为 `market,code,name`，代码必须保留六位：
 
 ```csv
 market,code,name
@@ -95,6 +95,45 @@ sh,688001,示例名称
 ```powershell
 python repo/stockstudy.py scan --names D:/参考资料/security_names.csv
 ```
+
+## 上市状态和名录更新
+
+`security_names.csv` 在 `market,code,name` 基础上新增：
+
+| 列 | 含义 |
+| --- | --- |
+| `is_delisted` | `true` 已确认摘牌，`false` 官方当前名录确认尚未退市，`unknown` 未确认 |
+| `listing_date` / `delisting_date` | 上市日期、实际终止上市日期；不是作出退市决定或进入退市整理期的日期 |
+| `status_source` / `status_checked_at` | 状态来源与核对日期 |
+| `name_source` / `name_checked_at` | 名称来源与核对日期 |
+
+不能用 ST 名称、行情过旧或未出现在某个名录中推断退市。三列名称 CSV 仍兼容，但所有状态视为未知。名称列表中的历史代码可能因代码切换而保留，不能全部计为当前上市公司。
+
+来源：
+
+- 上交所：[股票列表](https://www.sse.com.cn/assortment/stock/list/share/)、[暂停/终止上市公司](https://www.sse.com.cn/assortment/stock/list/delisting/)。
+- 深交所：[股票列表](https://www.szse.cn/market/product/stock/list/index.html)、[暂停/终止上市公司](https://www.szse.cn/market/stock/suspend/index.html)。
+- 北交所：[上市公司名录](https://www.bse.cn/nq/listedcompany.html)、正式摘牌公告；北交所接口未能访问时，使用[巨潮代码名称资料](https://www.cninfo.com.cn/new/data/bj_stock.json)补名称，不据此声明仍上市。
+
+2026-11-01 的快照共 6165 条：上海 2318 条确认未退市、148 条确认退市；深圳 2905 条确认未退市、189 条确认退市；北京 605 条代码名称（含历史代码），其中 2 条依据摘牌公告确认退市、603 条状态未知。北交所状态尚未全量核实，不能宣称退市过滤完整。原始下载快照留在工作区 `output/security_metadata`，校验值和覆盖情况见 `resources/security_metadata.json`。
+
+```powershell
+python repo/scripts/update_security_master.py
+# 使用已下载的快照离线重建，不访问网络
+python repo/scripts/update_security_master.py --offline --cache-dir output/security_metadata/2026-11-01 --checked-at 2026-11-01
+# 若已有核实的北交所官方上市名录 CSV（code,name,listing_date），可另行导入
+python repo/scripts/update_security_master.py --offline --cache-dir output/security_metadata/2026-11-01 --bse-listed D:/参考资料/bse_listed.csv
+```
+
+更新脚本保留下载快照，校验来源完整性后再替换名称表，并同步现有 `dist/windows`、`dist/cli` 中的外置 CSV。EXE 和 CLI 发布包优先读取各自旁边的 `security_names.csv`，不存在时使用内置快照。更新 CSV 不需要重装 Python；已打开的 GUI 在下一次分析时读取更新后的表。
+
+GUI 可取消勾选“排除已确认退市”；CLI 对应：
+
+```powershell
+python repo/stockstudy.py scan --include-delisted
+```
+
+这个选项用于历史研究时保留退市文件，不代表完整历史回测功能；`--as-of` 仍然只检查文件末条日期。未知状态不会被默认为正常或退市，数量和代码写入 `summary.json`；命中 CSV / JSON 包含 `is_delisted`。
 
 ## 两种筛选策略
 
@@ -158,7 +197,8 @@ Windows 版提供独立图形界面，双击 `dist/windows/stockstudy.exe` 即�
 2. 选择“价格形态”或“价格形态 + 跌幅”，设置最近记录数；跌幅模式可设置百分比阈值及历史参考位置。
 3. 可填写末条日期 `YYYY-MM-DD`；留空时采用每只股票自身最后一条记录。
 4. 点击“开始分析”。进度条显示扫描进度，可以取消；取消不会生成本次报告。
-5. 在表格中查看结果，按代码、名称或日期搜索，或点击“打开完整 CSV”“打开结果目录”。表格预览最多 2000 条，CSV / JSON 包含完整结果。
+5. 默认勾选“排除已确认退市”；未知状态仍参与，并在分析后提示数量。
+6. 在表格中查看结果，按代码、名称或日期搜索，或点击“打开完整 CSV”“打开结果目录”。表格预览最多 2000 条，CSV / JSON 包含完整结果。
 
 窗口标题和“关于与帮助”显示版本。命令行任务使用 `dist/cli/stockstudy.pyz`。
 
@@ -197,7 +237,7 @@ dist/windows/stockstudy.exe
 python repo/scripts/test.py
 ```
 
-测试覆盖 GUI 参数校验、后台扫描、取消、结果表格及搜索、价格形态、精度、跌幅阈值、历史边界、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
+测试覆盖北交所识别、退市三态标识与过滤、名录导入、GUI 参数校验、后台扫描、取消、结果表格及搜索、价格形态、精度、跌幅阈值、历史边界、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
 
 ## 后续数据源
 

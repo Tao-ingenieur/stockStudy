@@ -11,7 +11,7 @@ from pathlib import Path
 from ..models import DailyBar, Security
 
 RECORD = struct.Struct("<IIIIIfII")
-FILENAME = re.compile(r"^(sh|sz)(\d{6})\.day$", re.IGNORECASE)
+FILENAME = re.compile(r"^(sh|sz|bj)(\d{6})\.day$", re.IGNORECASE)
 
 
 def stock_security(filename: str) -> Security | None:
@@ -19,10 +19,10 @@ def stock_security(filename: str) -> Security | None:
     if not match:
         return None
     market, code = match[1].lower(), match[2]
-    # Shanghai 6 / Shenzhen 00,30 stock universe.
+    # Beijing legacy 43/83/87 and current 92 codes; exclude 899xxx indices.
     if (market == "sh" and code.startswith("6")) or (
         market == "sz" and code.startswith(("00", "30"))
-    ):
+    ) or (market == "bj" and code.startswith(("43", "83", "87", "92"))):
         return Security(market, code)
     return None
 
@@ -68,7 +68,7 @@ class TdxSource:
             raise ValueError(f"Data path is not a ZIP or directory: {self.path}")
         if not self._files:
             self.close()
-            raise ValueError(f"No supported Shanghai/Shenzhen .day files found in {self.path}")
+            raise ValueError(f"No supported Shanghai/Shenzhen/Beijing .day files found in {self.path}")
 
     def _add(self, filename: str, entry: Path | zipfile.ZipInfo) -> None:
         security = stock_security(filename)

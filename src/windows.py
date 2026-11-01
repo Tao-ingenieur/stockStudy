@@ -36,6 +36,7 @@ class StockStudyApp:
         self.threshold = tk.StringVar(value="40")
         self.references = tk.StringVar(value="40,20,10,5")
         self.as_of = tk.StringVar()
+        self.exclude_delisted = tk.BooleanVar(value=True)
         self.search = tk.StringVar()
         self.status = tk.StringVar(value="就绪 · 选择数据和策略后，点击开始分析")
         self.detail = tk.StringVar(value="价格使用不复权日线。日期留空时，各股票使用自身最后一条记录。")
@@ -116,6 +117,8 @@ class StockStudyApp:
         self.references_entry = ttk.Entry(advanced, textvariable=self.references, width=18)
         self.references_entry.pack(side="left", padx=(8, 12))
         ttk.Label(advanced, text="仅“价格形态 + 跌幅”策略使用", style="Muted.TLabel").pack(side="left")
+        self.delisted_check = ttk.Checkbutton(advanced, text="排除已确认退市", variable=self.exclude_delisted)
+        self.delisted_check.pack(side="right")
         ttk.Label(settings, textvariable=self.rule, style="Muted.TLabel", wraplength=1020).grid(row=4, column=0, columnspan=4, sticky="w", pady=(9, 0))
 
         actions = ttk.Frame(container)
@@ -158,7 +161,7 @@ class StockStudyApp:
         scrollbar.pack(side="right", fill="y")
         self.table.tag_configure("alternate", background="#f2f6fc")
         self.inputs = [self.data_entry, self.output_entry, self.zip_button, self.directory_button,
-                       self.output_button, self.lookback_entry, self.date_entry]
+                       self.output_button, self.lookback_entry, self.date_entry, self.delisted_check]
 
     def _mode_changed(self, _event=None):
         broad = self.mode.get() == "价格形态 + 跌幅"
@@ -199,7 +202,8 @@ class StockStudyApp:
             return
         try:
             request = make_request(self.data.get(), self.output.get(), MODES[self.mode.get()], self.lookback.get(),
-                                   self.threshold.get(), self.references.get(), self.as_of.get())
+                                   self.threshold.get(), self.references.get(), self.as_of.get(),
+                                   include_delisted=not self.exclude_delisted.get())
         except ValueError as exc:
             messagebox.showerror("请检查分析设置", str(exc), parent=self.root)
             return
@@ -238,7 +242,7 @@ class StockStudyApp:
                         self.progress["value"] = 100
                         self.status.set("分析完成" if not summary["read_errors"] else "已完成，部分文件读取失败")
                         self.counts.set(f"命中记录  {summary['matches']:,}       命中股票  {summary['matched_securities']:,}       读取异常  {summary['read_errors']:,}")
-                        self.detail.set(f"已保存到 {value.directory}。缺失名称 {summary['missing_name_count']} 个；日期不符排除 {summary['date_mismatches']} 个。")
+                        self.detail.set(f"已保存到 {value.directory}。已排除退市 {summary['delisted_excluded_count']}；上市状态未知 {summary['unknown_listing_status_count']}（仍参与分析）。")
                         self.folder_button.configure(state="normal")
                         self.csv_button.configure(state="normal")
                         self._render_rows()

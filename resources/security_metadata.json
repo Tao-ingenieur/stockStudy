@@ -1,0 +1,57 @@
+{
+  "checked_at": "2026-11-01",
+  "rows": 6165,
+  "coverage": {
+    "bj:unknown": 603,
+    "bj:true": 2,
+    "sh:false": 2318,
+    "sh:true": 148,
+    "sz:false": 2905,
+    "sz:true": 189
+  },
+  "limitations": [
+    "CNINFO Beijing names include legacy codes and delisted securities; a name is not proof of active listing.",
+    "Without a verified BSE listing export, Beijing status remains unknown except explicit delisting disclosures.",
+    "Missing from an exchange list does not establish delisting. ST and stale prices do not establish delisting."
+  ],
+  "raw_files": [
+    {
+      "file": "sse_listed.json",
+      "sha256": "b1317d1a6ad0d8eb59ee75a9a2e136ab0703a8ec33b6d9f66e0cf15e8a9eb975",
+      "endpoints": [
+        "https://query.sse.com.cn/sseQuery/commonQuery.do?sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&isPagination=true&pageHelp.pageSize=10000&pageHelp.pageNo=1&type=inParams&STOCK_TYPE=1%2C8&COMPANY_STATUS=2%2C4%2C5%2C7%2C8"
+      ]
+    },
+    {
+      "file": "sse_delisted.json",
+      "sha256": "e5a736e597f8fe375cdf417db60922f4ef77404643b7ca47e6d6ba0e8539b786",
+      "endpoints": [
+        "https://query.sse.com.cn/sseQuery/commonQuery.do?sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&isPagination=true&pageHelp.pageSize=10000&pageHelp.pageNo=1&type=inParams&STOCK_TYPE=1%2C8&COMPANY_STATUS=3"
+      ]
+    },
+    {
+      "file": "szse_listed.xlsx",
+      "sha256": "3121aa184fcea08d6127d2c6e349368131381d310c982c06c637bbadf3393c43",
+      "endpoints": [
+        "https://www.szse.cn/api/report/ShowReport?SHOWTYPE=xlsx&CATALOGID=1110&TABKEY=tab1",
+        "https://www.sse.org.cn/api/report/ShowReport?SHOWTYPE=xlsx&CATALOGID=1110&TABKEY=tab1"
+      ]
+    },
+    {
+      "file": "szse_delisted.xlsx",
+      "sha256": "f20bbf0d5584c0136c90b8c084ebb073fbefb2bb9ce4d3f31f1a99299e62dc30",
+      "endpoints": [
+        "https://www.szse.cn/api/report/ShowReport?SHOWTYPE=xlsx&CATALOGID=1793_ssgs&TABKEY=tab2",
+        "https://www.sse.org.cn/api/report/ShowReport?SHOWTYPE=xlsx&CATALOGID=1793_ssgs&TABKEY=tab2"
+      ]
+    },
+    {
+      "file": "cninfo_bj.json",
+      "sha256": "de01b06f73dbbdc8571b5e268864a3cc777295359d31e1683ca2dfa8f8b408a4",
+      "endpoints": [
+        "https://www.cninfo.com.cn/new/data/bj_stock.json"
+      ]
+    }
+  ],
+  "csv_sha256": "dc91e7f20d8af1772accd4d364b6f7c6811c39089b8af551f3d6e5032b66a89d"
+}
