@@ -23,7 +23,7 @@ def stage_package(staging: Path):
 
 def finish_release(release: Path, artifact: Path):
     shutil.copy2(REPO / "README.md", release / "README.md")
-    for filename in ("security_names.csv", "security_metadata.json"):
+    for filename in ("security_names.csv", "security_metadata.json", "limit_up_prices.template.csv"):
         source = REPO / "resources" / filename
         if source.is_file():
             shutil.copy2(source, release / filename)

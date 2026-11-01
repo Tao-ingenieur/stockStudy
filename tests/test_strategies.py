@@ -15,7 +15,7 @@ class StrategyTests(unittest.TestCase):
     security = Security("sz", "000001")
 
     def test_strict_threshold_and_no_display_rounding(self):
-        strategy = Strategy(period=1)
+        strategy = Strategy(period=1, gain_comparison="gt")
         self.assertEqual(screen(self.security, bars(1000, 1100), strategy), [])
         match = screen(self.security, bars(1000, 1101), strategy)[0]
         self.assertEqual(match.gain_ratio, Decimal("0.101"))
@@ -77,6 +77,25 @@ class StrategyTests(unittest.TestCase):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 Strategy(name="ma-cross", **kwargs)
         self.assertEqual(Strategy(name="ma-cross", slow_period=150).required_bars, 151)
+
+    def test_inclusive_and_strict_thresholds_are_distinct(self):
+        data = bars(1000, 1100)
+        self.assertEqual(len(screen(self.security, data, Strategy(period=1))), 1)
+        self.assertEqual(screen(self.security, data, Strategy(period=1, gain_comparison="gt")), [])
+        self.assertEqual(screen(self.security, bars(1000, 1099), Strategy(period=1)), [])
+        with self.assertRaises(ValueError):
+            Strategy(gain_comparison="invalid")
+
+    def test_limit_up_is_exact_price_not_percentage_or_intraday_touch(self):
+        strategy = Strategy(name="limit-up")
+        self.assertEqual(strategy.required_bars, 1)
+        data = bars(1003, 1103)
+        matches = screen(self.security, data, strategy, limit_up_price=1103)
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0].limit_up_price, 1103)
+        self.assertEqual(screen(self.security, data, Strategy(period=1)), [])
+        self.assertEqual(screen(self.security, bars(1102), strategy, limit_up_price=1103), [])
+        self.assertEqual(screen(self.security, bars(1103), strategy), [])
 
 
 if __name__ == "__main__":

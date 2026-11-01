@@ -47,6 +47,7 @@ class Match:
     previous_fast_ma: Decimal | None = None
     previous_slow_ma: Decimal | None = None
     trend_ma: Decimal | None = None
+    limit_up_price: int | None = None
 
 
 @dataclass(slots=True)
@@ -60,3 +61,5 @@ class ScanResult:
     dates: dict[Security, date] = field(default_factory=dict)
     delisted_excluded: list[str] = field(default_factory=list)
     unknown_status: list[str] = field(default_factory=list)
+    missing_limits: list[str] = field(default_factory=list)
+    unlimited: list[str] = field(default_factory=list)
