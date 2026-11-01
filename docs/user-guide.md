@@ -1,4 +1,4 @@
-# 股票分析使用手册
+# 淘金人股票分析使用手册
 
 ## 一、基本使用
 
@@ -12,7 +12,7 @@
 
 ### 1.2 开始分析
 
-双击 `dist/windows/股票分析.exe`，选择 ZIP 或目录，从下拉框选策略，在“分析策略”区域设置参数，点击“开始分析”。扫描期间可以取消，取消或失败保留上次完成结果。
+双击 `dist/windows/淘金人股票分析.exe`，选择 ZIP 或目录，从下拉框选策略，在“分析策略”区域设置参数，点击“开始分析”。扫描期间可以取消，取消或失败保留上次完成结果。
 
 每只股票只检查最后一条记录，最多输出一条结果。周期按该股票自身交易记录计数，不是自然日，不补停牌日。
 
@@ -30,7 +30,7 @@
 - “文件 → 导出全部结果”保存原始命中结果，不受结果过滤影响。
 - 选择目录后才保存；取消选择不写文件，关闭程序前请导出需要保留的结果。
 
-每次导出创建独立的 `股票分析_时间_唯一后缀` 目录，不覆盖之前结果，包含：
+每次导出创建独立的 `淘金人股票分析_时间_唯一后缀` 目录，不覆盖之前结果，包含：
 
 | 文件 | 内容 |
 | --- | --- |
@@ -71,7 +71,7 @@ python repo/stockstudy.py --help
 python repo/stockstudy.py --version
 python repo/stockstudy.py sources
 python repo/stockstudy.py scan --data D:/行情/hsjday.zip
-python dist/cli/股票分析.pyz scan --data D:/行情/vipdoc
+python dist/cli/淘金人股票分析.pyz scan --data D:/行情/vipdoc
 ```
 
 `--data` 可指定 ZIP 或目录，`--workspace` 可指定含 stock_data/output 的工作区，`--names` 可替换证券表。只有提供 `--output-dir` 才导出结果，`--quiet` 隐藏进度。相对路径按当前目录解释。
@@ -107,13 +107,29 @@ python repo/stockstudy.py scan --strategy gain --period 20 --gain-threshold 10
 默认附加条件：最新收盘价 > MA120
 ```
 
-短周期必须小于长周期。“收盘价高于趋势均线”可取消，趋势周期可改。默认需120条记录，取消趋势条件后需21条；通用要求为 max(长周期+1, 开启时的趋势周期)。均线相等、收盘价等于趋势均线都不满足对应的严格条件。连续多日短线在长线上方不算新金叉。
+短周期必须小于长周期。“收盘价高于趋势均线”可取消，趋势周期可改。默认需120条记录，取消趋势条件后需21条；启用放量确认时，还需要至少“均量窗口+1”条记录；通用要求取“长周期+1、启用时的趋势周期、启用时的均量窗口+1”中的最大值。均线相等、收盘价等于趋势均线都不满足对应的严格条件。连续多日短线在长线上方不算新金叉。
 
 ```powershell
 python repo/stockstudy.py scan --strategy ma-cross
 python repo/stockstudy.py scan --strategy ma-cross --no-trend-filter
 python repo/stockstudy.py scan --strategy ma-cross --fast-period 10 --slow-period 30 --trend-period 120
 ```
+
+**可选放量确认默认不勾选。** 勾选后，除金叉条件外，还需满足：
+
+```text
+最新成交量 ≥ 此前M条记录平均成交量 × 指定倍数
+```
+
+默认M=5、倍数1.5，平均成交量不含当天；恰好达到倍数也满足。它与MA120趋势条件相互独立：只勾趋势就只加趋势要求，只勾放量就只加放量要求，两项都勾选则都必须满足。
+
+```powershell
+python repo/stockstudy.py scan --strategy ma-cross --volume-filter --volume-period 5 --volume-multiple 1.5
+# 只增加放量确认，不检查MA120
+python repo/stockstudy.py scan --strategy ma-cross --volume-filter --no-trend-filter
+```
+
+勾选放量时，结果增加成交量、历史均量、成交量倍数；关闭时不检查成交量，也不显示这三列，导出中的未计算字段为空而不是0。摘要明确记录放量是否启用，导出还记录均量窗口、倍数阈值及窗口起止日期。历史均量为零或成交量无效时跳过并计数。与“放量突破”使用相同成交量定义，但各策略界面参数分别保留；金叉不要求突破前期高点。
 
 结果中的“上条MA”是最后一条之前那条记录对应的均线。导出保留上一条日期；趋势条件关闭时趋势均线为空。历史不足或参与计算的收盘价不大于零时跳过。
 

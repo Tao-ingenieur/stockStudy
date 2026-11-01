@@ -1,11 +1,11 @@
 """Desktop translations. Stable keys keep result data independent of language."""
 
 TEXT = {
-    "app": ("股票分析", "Stock Analysis"),
+    "app": ("淘金人股票分析", "Taojinren Stock Analysis"),
     "tagline": ("本地行情 · 策略筛选", "Local market data · Strategy screening"),
     "file": ("文件", "File"), "analysis": ("分析", "Analysis"),
     "language": ("语言", "Language"), "about_menu": ("关于", "About"),
-    "help": ("使用帮助", "Help"), "about": ("关于股票分析", "About Stock Analysis"),
+    "help": ("使用帮助", "Help"), "about": ("关于淘金人股票分析", "About Taojinren Stock Analysis"),
     "exit": ("退出", "Exit"), "settings": ("分析设置", "Analysis Settings"),
     "strategy_section": ("分析策略", "Analysis Strategy"), "results": ("分析结果", "Analysis Results"),
     "data": ("行情数据", "Market data"), "zip": ("选择 ZIP", "Choose ZIP"),
@@ -54,8 +54,11 @@ TEXT.update({
     "trend_filter": ("收盘价高于趋势均线", "Close above trend MA"),
     "trend_period": ("趋势均线周期", "Trend period"),
     "ma_rule": ("上一条短均线 ≤ 长均线，最新短均线 > 长均线；勾选趋势过滤时还需最新收盘价 > 趋势均线。", "Previous fast MA ≤ slow MA; latest fast MA > slow MA. With the trend filter, latest close must also be above the trend MA."),
-    "ma_hint": ("默认5/20日金叉，趋势过滤默认120日；历史不足则跳过。", "Defaults: 5/20 crossover with a 120-bar trend filter. Insufficient history is skipped."),
-    "bad_ma_parameters": ("均线周期须为正整数，短期必须小于长期；趋势过滤开启时须提供正整数周期。", "MA periods must be positive integers with fast < slow; an enabled trend filter requires a positive period."),
+    "ma_hint": ("默认5/20金叉，趋势过滤默认120日。放量确认默认关闭；开启时需成交量 ≥ 前M条均量 × 倍数，不含当天。", "Defaults: 5/20 crossover with 120-bar trend filter. Volume confirmation is off by default; enable it to require volume ≥ prior M-bar mean × multiple, excluding today."),
+    "ma_volume_filter": ("放量确认（可选）", "Volume confirmation (optional)"),
+    "ma_volume_off": ("放量确认：未启用，不检查成交量。", "Volume confirmation: off; volume is not tested."),
+    "ma_volume_on": ("放量确认：成交量 ≥ 前{period}条均量 × {multiple}；无效成交量 {invalid}。", "Volume confirmation: volume ≥ prior {period}-bar mean × {multiple}; invalid volume {invalid}."),
+    "bad_ma_parameters": ("均线周期须为正整数，短期须小于长期；启用的趋势/均量周期须为正整数，成交量倍数须为正的有限数值。", "MA periods must be positive integers with fast < slow. Enabled trend/volume windows must be positive integers; volume multiple must be finite and positive."),
     "fast_ma": ("MA{period}", "MA{period}"), "slow_ma": ("MA{period}", "MA{period}"),
     "trend_ma": ("趋势MA{period}", "Trend MA{period}"),
     "previous_fast_ma": ("上条MA{period}", "Previous MA{period}"),
@@ -112,7 +115,7 @@ TEXT.update({
 })
 
 TEXT["help_body"] = (
-    "一、基本使用\n\n"
+    "一、基本使用\n\n淘金人股票分析：读取本地日线，按所选条件筛选股票。\n\n"
     "选择通达信 ZIP 或日线目录，选择策略、填写参数后开始分析；扫描可取消。每只股票只检查最新一条记录，最多命中一条。\n\n"
     "末条日期留空使用行情数据中的最新交易日；填写日期时，股票文件的末条记录必须恰为该日，不是历史回放。上市状态不参与筛选。\n\n"
     "结果可按市场、板块和代码/名称/日期搜索；最多预览2000条，导出不受此限制。点击“导出筛选结果”保存匹配行；文件菜单的“导出全部结果”保存原始结果。取消选择不保存，关闭窗口前请导出需要保留的结果。\n\n"
@@ -121,12 +124,13 @@ TEXT["help_body"] = (
     "2.1 区间涨幅\n"
     "最新收盘价相对N条记录前的收盘价，涨幅大于等于阈值即命中。默认N=20、阈值10%，需21条记录。周期1、阈值9.9%可粗筛单日接近10%涨停的股票，不是精确涨停判断。\n\n"
     "2.2 双均线金叉\n"
-    "上一条短均线≤长均线，最新短均线>长均线。默认5/20，且要求收盘价>120日均线；可取消趋势条件。默认需120条记录，取消后需21条。连续多日短线在长线上方不算新金叉。\n\n"
+    "上一条短均线≤长均线，最新短均线>长均线。默认5/20，且要求收盘价>120日均线；可取消趋势条件。默认需120条记录，取消后需21条。连续多日短线在长线上方不算新金叉。\n"
+    "可选“放量确认”默认关闭：开启后还需成交量≥此前M条均量×倍数，默认M=5、倍数1.5，均量不含当天。它与MA120条件独立，两者勾选哪个就检查哪个；关闭放量时不检查或展示成交量指标。\n\n"
     "2.3 放量突破\n"
     "最新收盘价>此前N条记录的最高价，且成交量≥此前M条记录均量×倍数。默认N=20、M=5、倍数1.5，需21条记录；两个历史窗口均不含当天。\n"
     "突破幅度是收盘价超过前期最高价的百分比，不是当日涨幅。成交量倍数不是盘中量比。不要求当天收阳线，也不要求首次突破。历史不足或均量为零时跳过。\n\n"
     "所有周期按股票自身交易记录计数，不是自然日。",
-    "1. BASIC USE\n\n"
+    "1. BASIC USE\n\nTaojinren Stock Analysis screens local daily bars using your chosen conditions.\n\n"
     "Choose a Tongdaxin ZIP or daily-bar folder, select a strategy, set its parameters and start. Scans can be cancelled. Only each stock's latest bar is tested, with at most one match.\n\n"
     "A blank latest date uses the latest trading date in the market data. A specified date must match the stock file's final bar; it is not a historical replay. Listing status does not affect screening.\n\n"
     "Filter by market, board or code/name/date. The preview shows up to 2,000 rows; exports include every matching row. Export Filtered saves the subset; File > Export All saves original results. Cancelling the picker saves nothing. Export before closing to keep results.\n\n"
@@ -135,7 +139,8 @@ TEXT["help_body"] = (
     "2.1 Interval Gain\n"
     "Latest close versus the close N records earlier must gain at least the threshold. Defaults: N=20, threshold=10%, requiring 21 bars. Period 1 and 9.9% roughly screen one-day gains near a 10% limit, not exact limit-up status.\n\n"
     "2.2 MA Crossover\n"
-    "Previous fast SMA≤slow SMA and latest fast SMA>slow SMA. Defaults: 5/20 with close>120-bar SMA. Disable the optional trend filter to require 21 bars instead of 120. A continuing bullish alignment is not a new crossover.\n\n"
+    "Previous fast SMA≤slow SMA and latest fast SMA>slow SMA. Defaults: 5/20 with close>120-bar SMA. Disable the optional trend filter to require 21 bars instead of 120. A continuing bullish alignment is not a new crossover.\n"
+    "Optional volume confirmation is off by default. When enabled, volume must also be ≥ the prior M-bar mean × multiple (defaults: M=5, multiple=1.5, excluding today). This is independent of MA120; each enabled condition must pass. When off, volume is neither tested nor shown.\n\n"
     "2.3 Volume Breakout\n"
     "Latest close>highest high of the prior N bars, and volume≥mean volume of the prior M bars×multiple. Defaults: N=20, M=5, multiple=1.5, requiring 21 bars. Both history windows exclude today.\n"
     "Breakout percentage measures close versus the prior high, not the one-day gain. Volume multiple is not an intraday volume ratio. A bullish candle or first breakout is not required. Short history or zero mean volume is skipped.\n\n"

@@ -30,7 +30,7 @@ class AnalysisOutcome:
 
 def make_request(data, period, threshold, as_of, language="zh",
                  strategy_name="gain", fast_period="5", slow_period="20", trend_filter=True, trend_period="120",
-                 breakout_period="20", volume_period="5", volume_multiple="1.5") -> AnalysisRequest:
+                 breakout_period="20", volume_period="5", volume_multiple="1.5", volume_filter=False) -> AnalysisRequest:
     if not data.strip():
         raise ValueError(translate(language, "missing_data"))
     data_path = Path(data.strip().strip('"')).expanduser().resolve()
@@ -42,7 +42,9 @@ def make_request(data, period, threshold, as_of, language="zh",
                                 volume_period=int(volume_period), volume_multiple=Decimal(volume_multiple))
         elif strategy_name == "ma-cross":
             strategy = Strategy(name=strategy_name, fast_period=int(fast_period), slow_period=int(slow_period),
-                                trend_filter=trend_filter, trend_period=int(trend_period) if trend_filter else 120)
+                                trend_filter=trend_filter, trend_period=int(trend_period) if trend_filter else 120,
+                                volume_filter=volume_filter, volume_period=int(volume_period) if volume_filter else 5,
+                                volume_multiple=Decimal(volume_multiple) if volume_filter else Decimal("1.5"))
         else:
             strategy = Strategy(name=strategy_name, period=int(period), gain_threshold=Decimal(threshold) / 100)
     except (ValueError, InvalidOperation):

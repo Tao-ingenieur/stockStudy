@@ -25,7 +25,7 @@ class ServiceCliTests(unittest.TestCase):
                 with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as stopped:
                     main([flag])
                 self.assertEqual(stopped.exception.code, 0)
-                self.assertIn(f"股票分析 {__version__}", output.getvalue())
+                self.assertIn(f"淘金人股票分析 {__version__}", output.getvalue())
 
     def make_data(self, root):
         directory = root / "sh" / "lday"

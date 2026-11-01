@@ -1,9 +1,9 @@
-# 股票分析
+# 淘金人股票分析
 
 读取本地股票日线，按**区间涨幅**、**双均线金叉**或**放量突破**筛选股票，提供 Windows GUI 和 CLI。当前支持通达信 `.day` 文件、ZIP 数据包及解压目录，覆盖支持代码范围内的沪深北股票。
 
 - 区间涨幅：默认比较 20 条交易记录前的收盘价，涨幅 **≥ 10%**。
-- 双均线金叉：默认 MA5 上穿 MA20，可选收盘价高于 MA120，默认开启。
+- 双均线金叉：默认 MA5 上穿 MA20，可选收盘价高于 MA120（默认开启）和放量确认（默认关闭），两个条件独立。
 - 放量突破：收盘价突破此前20条最高价，成交量达到此前5条均量的1.5倍，窗口不含当天。
 - 末条日期留空使用行情数据中的最新交易日；上市状态仅作参考，不参与筛选。
 - 中英文界面，支持市场、板块、关键词过滤；仅用户导出时保存 CSV / JSON。
@@ -12,7 +12,7 @@
 
 ## 快速开始
 
-Windows 用户双击工作区中的 `dist/windows/股票分析.exe`，选择行情数据后开始分析。
+Windows 用户双击工作区中的 `dist/windows/淘金人股票分析.exe`，选择行情数据后开始分析。
 
 源码和 CLI 需要 Python 3.11+，运行只依赖标准库，无需安装 pytdx。从工作区根目录运行：
 
@@ -46,7 +46,7 @@ uv pip install --python repo/.venv/Scripts/python.exe -r repo/requirements-build
 repo/.venv/Scripts/python.exe repo/scripts/build.py --target all
 ```
 
-Windows EXE 必须在 Windows 构建。已有虚拟环境时跳过创建步骤。CLI 输出为 `dist/cli/股票分析.pyz`，Windows 输出为 `dist/windows/股票分析.exe`。
+Windows EXE 必须在 Windows 构建。已有虚拟环境时跳过创建步骤。CLI 输出为 `dist/cli/淘金人股票分析.pyz`，Windows 输出为 `dist/windows/淘金人股票分析.exe`。
 
 ## 文档
 

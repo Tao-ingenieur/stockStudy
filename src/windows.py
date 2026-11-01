@@ -8,6 +8,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from . import __version__
+from .version import APP_NAME
 from .application import analyze, export_analysis, filter_results, make_request, MARKET_FILTERS
 from .cli import find_workspace
 from .i18n import translate
@@ -44,6 +45,9 @@ class StockStudyApp:
         self.slow_period = tk.StringVar(value="20")
         self.trend_period = tk.StringVar(value="120")
         self.trend_filter = tk.BooleanVar(value=True)
+        self.ma_volume_filter = tk.BooleanVar(value=False)
+        self.ma_volume_period = tk.StringVar(value="5")
+        self.ma_volume_multiple = tk.StringVar(value="1.5")
         self.breakout_period = tk.StringVar(value="20")
         self.volume_period = tk.StringVar(value="5")
         self.volume_multiple = tk.StringVar(value="1.5")
@@ -270,8 +274,25 @@ class StockStudyApp:
         self.trend_entry = ttk.Entry(row, textvariable=self.trend_period, width=6)
         self.trend_entry.pack(side="left", padx=8)
         self.strategy_inputs.append(self.trend_entry)
+        volume_row = ttk.Frame(self.strategy_frame)
+        volume_row.pack(fill="x", pady=(6, 0))
+        self.ma_volume_check = ttk.Checkbutton(volume_row, text=self.t("ma_volume_filter"), variable=self.ma_volume_filter,
+                                              command=self._ma_volume_changed)
+        self.ma_volume_check.pack(side="left", padx=(0, 18))
+        self.strategy_inputs.append(self.ma_volume_check)
+        self.ma_volume_entries = []
+        for key, variable in (("volume_period", self.ma_volume_period), ("volume_multiple", self.ma_volume_multiple)):
+            ttk.Label(volume_row, text=self.t(key)).pack(side="left")
+            entry = ttk.Entry(volume_row, textvariable=variable, width=7)
+            entry.pack(side="left", padx=(8, 18))
+            self.ma_volume_entries.append(entry)
+            self.strategy_inputs.append(entry)
         ttk.Label(self.strategy_frame, text=self.t("ma_hint"), style="Muted.TLabel").pack(anchor="w", pady=(6, 0))
         ttk.Label(self.strategy_frame, text=self.t("ma_rule"), style="Muted.TLabel", wraplength=1000).pack(anchor="w", pady=(4, 0))
+
+    def _ma_volume_changed(self):
+        for entry in self.ma_volume_entries:
+            entry.configure(state="normal" if self.ma_volume_filter.get() and not self.running else "disabled")
 
     def _trend_changed(self):
         self.trend_entry.configure(state="normal" if self.trend_filter.get() and not self.running else "disabled")
@@ -284,6 +305,8 @@ class StockStudyApp:
             "ma-cross": ["fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma"],
             "breakout": ["prior_high", "breakout_pct", "volume", "average_volume", "volume_ratio"],
         }.get(mode, ["base_date", "base_close", "gain_column"])
+        if mode == "ma-cross" and s.get("volume_filter", self.ma_volume_filter.get()):
+            columns += ["volume", "average_volume", "volume_ratio"]
         self.table.configure(columns=columns)
         for column in columns:
             if column in {"fast_ma", "previous_fast_ma"}:
@@ -293,7 +316,8 @@ class StockStudyApp:
             else:
                 period = s.get("trend_period", self.trend_period.get())
             self.table.heading(column, text=self.t(column, period=period))
-            self.table.column(column, width=140 if column == "name" else 120, minwidth=85,
+            width = 160 if column in {"volume", "average_volume"} else 140 if column == "name" else 120
+            self.table.column(column, width=width, minwidth=85, stretch=False,
                               anchor="w" if column == "name" else "center")
 
     def _strategy_changed(self, _event=None):
@@ -319,6 +343,9 @@ class StockStudyApp:
         if s.get("strategy") == "ma-cross":
             trend = self.t("trend_on", period=s["trend_period"]) if s["trend_filter"] else self.t("trend_off")
             detail = self.t("ma_result", fast=s["fast_period"], slow=s["slow_period"], trend=trend, **common)
+            detail += " " + (self.t("ma_volume_on", period=s["volume_period"], multiple=s["volume_multiple"],
+                                     invalid=s.get("invalid_volume_count", 0))
+                              if s.get("volume_filter") else self.t("ma_volume_off"))
         elif s.get("strategy") == "breakout":
             detail = self.t("breakout_result", price_period=s["breakout_period"], volume_period=s["volume_period"],
                             multiple=s["volume_multiple"], volumes=s["invalid_volume_count"], **common)
@@ -357,6 +384,7 @@ class StockStudyApp:
             widget.configure(state="disabled" if running else "normal")
         if self.strategy_id == "ma-cross":
             self._trend_changed()
+            self._ma_volume_changed()
         self.strategy_box.configure(state="disabled" if running else "readonly")
         self._menus()
 
@@ -369,7 +397,9 @@ class StockStudyApp:
                                    strategy_name=self.strategy_id, fast_period=self.fast_period.get(),
                                    slow_period=self.slow_period.get(), trend_filter=self.trend_filter.get(),
                                    trend_period=self.trend_period.get(), breakout_period=self.breakout_period.get(),
-                                   volume_period=self.volume_period.get(), volume_multiple=self.volume_multiple.get())
+                                   volume_period=self.ma_volume_period.get() if self.strategy_id == "ma-cross" else self.volume_period.get(),
+                                   volume_multiple=self.ma_volume_multiple.get() if self.strategy_id == "ma-cross" else self.volume_multiple.get(),
+                                   volume_filter=self.ma_volume_filter.get())
         except ValueError as exc:
             messagebox.showerror(self.t("check"), str(exc), parent=self.root)
             return
@@ -485,6 +515,8 @@ class StockStudyApp:
             values = [row["market"] + row["code"], row["name"] or "—", row["date"], row["close"]]
             if self.outcome.summary.get("strategy") == "ma-cross":
                 values += [row[key] or "—" for key in ("fast_ma", "slow_ma", "trend_ma", "previous_fast_ma", "previous_slow_ma")]
+                if self.outcome.summary.get("volume_filter"):
+                    values += [f"{row['volume'] / 10000:.2f}", f"{row['average_volume'] / 10000:.2f}", f"{row['volume_ratio']:.4f}"]
             elif self.outcome.summary.get("strategy") == "breakout":
                 values += [row["prior_high"], f"{row['breakout_pct']:.4f}%", f"{row['volume'] / 10000:.2f}",
                            f"{row['average_volume'] / 10000:.2f}", f"{row['volume_ratio']:.4f}"]
@@ -551,7 +583,7 @@ def main(argv=None):
     root = tk.Tk()
     if arguments and arguments[0] in {"--version", "-version", "-V", "--help", "-h"}:
         root.withdraw()
-        messagebox.showinfo("股票分析", f"股票分析 {__version__}\n\n双击打开程序；使用帮助位于“关于”菜单。", parent=root)
+        messagebox.showinfo(APP_NAME, f"{APP_NAME} {__version__}\n\n双击打开程序；使用帮助位于“关于”菜单。", parent=root)
         root.destroy()
         return 0
     StockStudyApp(root)

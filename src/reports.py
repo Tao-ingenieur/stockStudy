@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
+from .version import APP_NAME
 from .models import ScanResult, Security, SecurityInfo
 from .strategies import Strategy
 from .boards import board_for
@@ -43,9 +44,15 @@ def prepare_report(
             row.update(previous_date=item.previous_date.isoformat(),
                        **{key: format(getattr(item, key) / 100, ".6f") if getattr(item, key) is not None else ""
                           for key in ("fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma")})
+            row.update(volume_filter=strategy.volume_filter,
+                       volume=item.volume if strategy.volume_filter else None,
+                       average_volume=float(round(item.average_volume, 6)) if strategy.volume_filter else None,
+                       volume_ratio=float(round(item.volume_ratio, 6)) if strategy.volume_filter else None,
+                       volume_window_start=item.volume_window_start.isoformat() if strategy.volume_filter else None,
+                       volume_window_end=item.volume_window_end.isoformat() if strategy.volume_filter else None)
         rows.append(row)
     summary = {
-        "version": __version__, "created_at": datetime.now(timezone.utc).isoformat(),
+        "application": APP_NAME, "version": __version__, "created_at": datetime.now(timezone.utc).isoformat(),
         "source": source_name, "data_path": str(data_path.resolve()),
         "price_adjustment": "unadjusted", "volume_unit": "shares", "price_unit": "CNY",
         "strategy": strategy.name, "required_bars": strategy.required_bars,
@@ -76,7 +83,12 @@ def prepare_report(
         summary.update(fast_period=strategy.fast_period, slow_period=strategy.slow_period,
                        trend_filter=strategy.trend_filter, trend_period=strategy.trend_period,
                        comparison="previous_fast_ma <= previous_slow_ma and fast_ma > slow_ma",
-                       trend_comparison="close > trend_ma" if strategy.trend_filter else "disabled")
+                       trend_comparison="close > trend_ma" if strategy.trend_filter else "disabled",
+                       volume_filter=strategy.volume_filter,
+                       volume_period=strategy.volume_period if strategy.volume_filter else None,
+                       volume_multiple=str(strategy.volume_multiple) if strategy.volume_filter else None,
+                       volume_comparison="latest_volume >= multiple * mean(previous_M_volumes)" if strategy.volume_filter else "disabled",
+                       volume_window_excludes_latest=True if strategy.volume_filter else None)
     return rows, summary
 
 
@@ -84,11 +96,12 @@ def export_report(rows: list[dict], summary: dict, output_dir: Path) -> Path:
     """Persist a completed result only when the caller explicitly requests export."""
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
-    run_dir = output_dir / f"股票分析_{stamp}_{uuid4().hex[:12]}"
+    run_dir = output_dir / f"{APP_NAME}_{stamp}_{uuid4().hex[:12]}"
     run_dir.mkdir()
     columns = ["market", "code", "name", "board", "status", "date", "close"]
     columns += {
-        "ma-cross": ["previous_date", "fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma"],
+        "ma-cross": ["previous_date", "fast_ma", "slow_ma", "previous_fast_ma", "previous_slow_ma", "trend_ma",
+                     "volume_filter", "volume", "average_volume", "volume_ratio", "volume_window_start", "volume_window_end"],
         "breakout": ["prior_high", "prior_high_date", "breakout_pct", "volume", "average_volume", "volume_ratio",
                      "price_window_start", "price_window_end", "volume_window_start", "volume_window_end"],
     }.get(summary.get("strategy"), ["base_date", "base_close", "gain_ratio", "gain_pct"])

@@ -14,6 +14,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 from stockstudy import __version__
+from stockstudy.version import APP_NAME
 
 
 def stage_package(staging: Path):
@@ -40,7 +41,7 @@ def build_cli(output_root: Path):
     with tempfile.TemporaryDirectory() as temp:
         staging = Path(temp)
         stage_package(staging)
-        target = release / "股票分析.pyz"
+        target = release / f"{APP_NAME}.pyz"
         (staging / "__main__.py").write_text("from stockstudy.cli import main\nraise SystemExit(main())\n", encoding="utf-8")
         zipapp.create_archive(staging, target, compressed=True)
     finish_release(release, target)
@@ -59,13 +60,13 @@ def build_windows(output_root: Path):
         stage_package(staging)
         subprocess.run([
             sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--windowed",
-            "--name", "股票分析", "--icon", str(REPO / "resources/candlestick.ico"), "--paths", str(staging),
+            "--name", APP_NAME, "--icon", str(REPO / "resources/candlestick.ico"), "--paths", str(staging),
             "--add-data", f"{REPO / 'resources' / 'security_names.csv'}{os.pathsep}stockstudy/resources",
             "--add-data", f"{REPO / 'resources' / 'candlestick.png'}{os.pathsep}stockstudy/resources",
             "--distpath", str(release), "--workpath", str(work / "work"),
             "--specpath", str(work), str(REPO / "apps" / "windows_entry.py"),
         ], check=True, cwd=staging)
-    finish_release(release, release / "股票分析.exe")
+    finish_release(release, release / f"{APP_NAME}.exe")
 
 
 def main():

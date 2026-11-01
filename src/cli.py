@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from . import __version__
+from .version import APP_NAME
 from .names import load_security_info
 from .reports import prepare_report, export_report
 from .service import scan
@@ -30,8 +31,8 @@ def positive_int(value: str) -> int:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=f"股票分析 {__version__} 本地日线筛选")
-    parser.add_argument("--version", "-version", "-V", action="version", version=f"股票分析 {__version__}")
+    parser = argparse.ArgumentParser(description=f"{APP_NAME} {__version__} 本地日线筛选")
+    parser.add_argument("--version", "-version", "-V", action="version", version=f"{APP_NAME} {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("sources", help="列出数据源和规划状态")
     command = commands.add_parser("scan", help="扫描本地日线")
@@ -46,6 +47,7 @@ def main(argv=None) -> int:
     command.add_argument("--trend-period", type=positive_int, default=120, help="趋势过滤均线周期，默认120")
     command.add_argument("--no-trend-filter", action="store_true", help="金叉不要求收盘价高于趋势均线；默认要求")
     command.add_argument("--breakout-period", type=positive_int, default=20, help="突破价格窗口，不含最新记录，默认20")
+    command.add_argument("--volume-filter", action="store_true", help="金叉额外要求放量确认；默认关闭，与趋势过滤独立")
     command.add_argument("--volume-period", type=positive_int, default=5, help="历史平均成交量窗口，不含最新记录，默认5")
     command.add_argument("--volume-multiple", default="1.5", help="最新成交量至少为历史均量的倍数，默认1.5")
     command.add_argument("--as-of", type=date.fromisoformat, help="只扫描最后一条记录恰为该日期的股票 YYYY-MM-DD；留空使用行情数据中的最新交易日")
@@ -69,7 +71,9 @@ def main(argv=None) -> int:
                                 volume_period=args.volume_period, volume_multiple=Decimal(args.volume_multiple))
         elif args.strategy == "ma-cross":
             strategy = Strategy(name=args.strategy, fast_period=args.fast_period, slow_period=args.slow_period,
-                                trend_filter=not args.no_trend_filter, trend_period=args.trend_period)
+                                trend_filter=not args.no_trend_filter, trend_period=args.trend_period,
+                                volume_filter=args.volume_filter, volume_period=args.volume_period,
+                                volume_multiple=Decimal(args.volume_multiple) if args.volume_filter else Decimal("1.5"))
         else:
             strategy = Strategy(args.strategy, args.period, Decimal(args.gain_threshold) / 100)
         security_info = load_security_info(args.names)

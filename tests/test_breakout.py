@@ -145,7 +145,7 @@ class BreakoutTests(unittest.TestCase):
             directory = Path(temp)
             with contextlib.redirect_stdout(io.StringIO()):
                 module["build_cli"](directory)
-            artifact = directory / "cli/股票分析.pyz"
+            artifact = directory / "cli/淘金人股票分析.pyz"
             result = subprocess.run([sys.executable, "-B", str(artifact), "scan", "--strategy", "breakout",
                                      "--volume-multiple", "NaN", "--quiet"], capture_output=True)
             self.assertEqual(result.returncode, 1)
