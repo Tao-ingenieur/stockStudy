@@ -38,16 +38,12 @@ def load_security_info(path=None) -> dict[Security, SecurityInfo]:
                 raise ValueError(f"Invalid security in names CSV: {row}")
             if security in names:
                 raise ValueError(f"Duplicate name entry: {security.symbol}")
-            flag = row.get("is_delisted", "unknown").strip().lower() or "unknown"
-            if flag not in {"true", "false", "unknown"}:
-                raise ValueError(f"Invalid is_delisted for {security.symbol}: {flag}")
-            def read_date(column):
-                value = row.get(column, "").strip()
-                return date.fromisoformat(value) if value else None
+            status = row.get("status", "unknown").strip().lower() or "unknown"
+            if status not in {"listed", "delisted", "unknown"}:
+                raise ValueError(f"Invalid status for {security.symbol}: {status}")
+            checked = row.get("name_checked_at", "").strip()
             names[security] = SecurityInfo(
-                row["name"].strip(), {"true": True, "false": False, "unknown": None}[flag],
-                read_date("listing_date"), read_date("delisting_date"),
-                row.get("status_source", "").strip(), read_date("status_checked_at"),
+                row["name"].strip(), status, date.fromisoformat(checked) if checked else None,
             )
     return names
 

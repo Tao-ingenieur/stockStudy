@@ -30,14 +30,14 @@ def write_report(
         rows.append({
             "market": item.security.market, "code": item.security.code,
             "name": names.get(item.security, ""), "date": item.date.isoformat(),
-            "is_delisted": "unknown" if info is None or info.is_delisted is None else str(info.is_delisted).lower(),
+            "status": info.status if info is not None else "unknown",
             "low": price(item.low), "pattern": item.pattern,
             "reference_days": item.reference_days,
             "reference_date": item.reference_date.isoformat() if item.reference_date else "",
             "reference_high": price(high),
             "drop_ratio": round((high - item.low) / high, 8) if high else None,
         })
-    columns = ["market", "code", "name", "is_delisted", "date", "low", "pattern", "reference_days",
+    columns = ["market", "code", "name", "status", "date", "low", "pattern", "reference_days",
                "reference_date", "reference_high", "drop_ratio"]
     with (run_dir / "matches.csv").open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)

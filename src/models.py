@@ -28,11 +28,8 @@ class DailyBar:
 @dataclass(frozen=True, slots=True)
 class SecurityInfo:
     name: str
-    is_delisted: bool | None = None
-    listing_date: date | None = None
-    delisting_date: date | None = None
-    status_source: str = ""
-    status_checked_at: date | None = None
+    status: str = "unknown"
+    name_checked_at: date | None = None
 
 
 @dataclass(frozen=True, slots=True)

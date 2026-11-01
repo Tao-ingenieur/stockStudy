@@ -27,12 +27,12 @@ def scan(
         if cancelled and cancelled():
             raise ScanCancelled()
         info = security_info.get(security) if security_info is not None else None
-        if info and info.is_delisted is True and not include_delisted:
+        if info and info.status == "delisted" and not include_delisted:
             result.delisted_excluded.append(security.symbol)
             if progress:
                 progress(index, len(securities))
             continue
-        if security_info is not None and (info is None or info.is_delisted is None):
+        if security_info is not None and (info is None or info.status == "unknown"):
             result.unknown_status.append(security.symbol)
         try:
             bars = source.read_bars(security, strategy.required_bars)

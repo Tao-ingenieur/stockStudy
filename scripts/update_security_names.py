@@ -27,8 +27,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 from stockstudy.readers.tdx import stock_security
 
-FIELDS = ["market", "code", "name", "is_delisted", "listing_date", "delisting_date",
-          "status_source", "status_checked_at", "name_source", "name_checked_at"]
+FIELDS = ["market", "code", "name", "status", "name_checked_at"]
+DETAIL_FIELDS = FIELDS + ["listing_date", "delisting_date", "status_source", "status_checked_at", "name_source"]
 SH_PARAMS = {"sqlId": "COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L", "isPagination": "true",
              "pageHelp.pageSize": "10000", "pageHelp.pageNo": "1", "type": "inParams", "STOCK_TYPE": "1,8"}
 DOWNLOADS = {
@@ -81,25 +81,25 @@ def read_xlsx(data):
     return [{name: row.get(column, "") for column, name in header.items()} for row in matrix[1:]]
 
 
-def merge_entry(rows, checked_at, market, code, name, flag, source, listing="", delisting=""):
+def merge_entry(rows, checked_at, market, code, name, status, source, listing="", delisting=""):
     code = clean(code).zfill(6)
     if stock_security(market + code + ".day") is None:
         return
     listing, delisting = normalize_date(listing), normalize_date(delisting)
     key = market, code
-    row = rows.setdefault(key, {field: "" for field in FIELDS})
-    if flag == "true" and not delisting:
+    row = rows.setdefault(key, {field: "" for field in DETAIL_FIELDS})
+    if status == "delisted" and not delisting:
         raise ValueError(f"Missing effective delisting date for {market}{code}")
-    if flag == "true" and row.get("is_delisted") == "false" and row.get("listing_date", "") > delisting:
+    if status == "delisted" and row.get("status") == "listed" and row.get("listing_date", "") > delisting:
         return
     row.update(market=market, code=code, name=clean(name), name_source=source, name_checked_at=checked_at)
-    if flag == "unknown":
-        row["is_delisted"] = row.get("is_delisted") or "unknown"
+    if status == "unknown":
+        row["status"] = row.get("status") or "unknown"
         return
-    effective_flag = "false" if flag == "true" and delisting > checked_at else flag
+    effective_status = "listed" if status == "delisted" and delisting > checked_at else status
     if listing > checked_at:
-        effective_flag = "unknown"
-    row.update(is_delisted=effective_flag, listing_date=listing or row.get("listing_date", ""),
+        effective_status = "unknown"
+    row.update(status=effective_status, listing_date=listing or row.get("listing_date", ""),
                delisting_date=delisting, status_source=source, status_checked_at=checked_at)
 
 
@@ -127,19 +127,19 @@ def build_master(existing, cache, checked_at, overrides, bse_listed=None):
     rows = {}
     for original in existing:
         key = original["market"], original["code"]
-        rows[key] = {field: original.get(field, "") for field in FIELDS}
-        rows[key]["is_delisted"] = original.get("is_delisted") or "unknown"
+        rows[key] = {field: original.get(field, "") for field in DETAIL_FIELDS}
+        rows[key]["status"] = original.get("status") or "unknown"
         rows[key]["name_source"] = original.get("name_source") or "project_reference"
-        if rows[key]["is_delisted"] != "true":
-            rows[key].update(is_delisted="unknown", status_source="", status_checked_at="")
+        if rows[key]["status"] != "delisted":
+            rows[key].update(status="unknown", status_source="", status_checked_at="")
 
-    def apply(market, code, name, flag, source, listing="", delisting=""):
-        merge_entry(rows, checked_at, market, code, name, flag, source, listing, delisting)
+    def apply(market, code, name, status, source, listing="", delisting=""):
+        merge_entry(rows, checked_at, market, code, name, status, source, listing, delisting)
 
-    for filename, flag in (("sse_listed.json", "false"), ("sse_delisted.json", "true")):
+    for filename, status in (("sse_listed.json", "listed"), ("sse_delisted.json", "delisted")):
         payload = json.loads((cache / filename).read_text(encoding="utf-8-sig"))
         records = payload["result"]
-        if len(records) < (1000 if flag == "false" else 50):
+        if len(records) < (1000 if status == "listed" else 50):
             raise ValueError(f"Unexpectedly small exchange list: {filename}")
         if len(records) != int(payload["pageHelp"]["total"]):
             raise ValueError(f"Incomplete exchange pagination: {filename}")
@@ -147,26 +147,26 @@ def build_master(existing, cache, checked_at, overrides, bse_listed=None):
             name = item.get("SEC_NAME_CN")
             if not name or name == "-":
                 name = item["COMPANY_ABBR"]
-            apply("sh", item["A_STOCK_CODE"], name, flag, DOWNLOADS[filename][0], item["LIST_DATE"], item["DELIST_DATE"] if flag == "true" else "")
+            apply("sh", item["A_STOCK_CODE"], name, status, DOWNLOADS[filename][0], item["LIST_DATE"], item["DELIST_DATE"] if status == "delisted" else "")
 
-    for filename, flag in (("szse_listed.xlsx", "false"), ("szse_delisted.xlsx", "true")):
+    for filename, status in (("szse_listed.xlsx", "listed"), ("szse_delisted.xlsx", "delisted")):
         records = read_xlsx((cache / filename).read_bytes())
-        if len(records) < (1000 if flag == "false" else 50):
+        if len(records) < (1000 if status == "listed" else 50):
             raise ValueError(f"Unexpectedly small exchange list: {filename}")
         for item in records:
-            if flag == "false":
-                apply("sz", item["A股代码"], item["A股简称"], flag, DOWNLOADS[filename][0], item["A股上市日期"])
+            if status == "listed":
+                apply("sz", item["A股代码"], item["A股简称"], status, DOWNLOADS[filename][0], item["A股上市日期"])
             else:
-                apply("sz", item["证券代码"], item["证券简称"], flag, DOWNLOADS[filename][0], item["上市日期"], item["终止上市日期"])
+                apply("sz", item["证券代码"], item["证券简称"], status, DOWNLOADS[filename][0], item["上市日期"], item["终止上市日期"])
 
     for item in json.loads((cache / "cninfo_bj.json").read_text(encoding="utf-8-sig"))["stockList"]:
         if item.get("category") == "A股":
             apply("bj", item["code"], item["zwjc"], "unknown", DOWNLOADS["cninfo_bj.json"][0])
     if bse_listed:
         for item in bse_listed:
-            apply("bj", item["code"], item["name"], "false", "https://www.bse.cn/nq/listedcompany.html", item.get("listing_date", ""))
+            apply("bj", item["code"], item["name"], "listed", "https://www.bse.cn/nq/listedcompany.html", item.get("listing_date", ""))
     for item in overrides:
-        apply(item["market"], item["code"], item["name"], "true", item["source"], delisting=item["delisting_date"])
+        apply(item["market"], item["code"], item["name"], "delisted", item["source"], delisting=item["delisting_date"])
     return [rows[key] for key in sorted(rows)]
 
 
@@ -185,10 +185,17 @@ def main():
             for task in as_completed(tasks):
                 print("Downloaded", *task.result(), flush=True)
     target = REPO / "resources/security_names.csv"
-    with target.open(encoding="utf-8-sig", newline="") as stream:
-        existing = list(csv.DictReader(stream))
+    existing = []
+    if target.exists():
+        with target.open(encoding="utf-8-sig", newline="") as stream:
+            existing = list(csv.DictReader(stream))
+    metadata_path = REPO / "resources/security_metadata.json"
+    if metadata_path.exists():
+        previous = json.loads(metadata_path.read_text(encoding="utf-8"))
+        details = {(item["market"], item["code"]): item for item in previous.get("security_details", [])}
+        existing = [dict(details.get((item["market"], item["code"]), {}), **item) for item in existing]
     before = cache / "security_names.before.csv"
-    if not before.exists():
+    if target.exists() and not before.exists():
         before.write_bytes(target.read_bytes())
     with (REPO / "resources/delisting_overrides.csv").open(encoding="utf-8-sig", newline="") as stream:
         overrides = list(csv.DictReader(stream))
@@ -201,16 +208,17 @@ def main():
     with temporary.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=FIELDS, lineterminator="\n")
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows({field: row.get(field, "") for field in FIELDS} for row in rows)
     temporary.replace(target)
-    coverage = dict(Counter(row["market"] + ":" + row["is_delisted"] for row in rows))
+    coverage = dict(Counter(row["market"] + ":" + row["status"] for row in rows))
     manifest = {"checked_at": args.checked_at.isoformat(), "rows": len(rows), "coverage": coverage,
         "limitations": ["CNINFO Beijing names include legacy codes and delisted securities; a name is not proof of active listing.",
                         "Without a verified BSE listing export, Beijing status remains unknown except explicit delisting disclosures.",
                         "Missing from an exchange list does not establish delisting. ST and stale prices do not establish delisting."],
         "raw_files": [{"file": name, "sha256": hashlib.sha256((cache / name).read_bytes()).hexdigest(),
                        "endpoints": urls} for name, urls in DOWNLOADS.items()],
-        "csv_sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
+        "csv_sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+        "security_details": rows}
     (REPO / "resources/security_metadata.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     for platform in ("windows", "cli"):
         release = REPO.parent / "dist" / platform
