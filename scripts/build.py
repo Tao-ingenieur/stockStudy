@@ -38,7 +38,7 @@ def build_cli(output_root: Path):
     with tempfile.TemporaryDirectory() as temp:
         staging = Path(temp)
         stage_package(staging)
-        target = release / "stockstudy.pyz"
+        target = release / "股票分析.pyz"
         zipapp.create_archive(staging, target, main="stockstudy.cli:main", compressed=True)
     finish_release(release, target)
 
@@ -56,12 +56,13 @@ def build_windows(output_root: Path):
         stage_package(staging)
         subprocess.run([
             sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--windowed",
-            "--name", "stockstudy", "--paths", str(staging),
+            "--name", "股票分析", "--icon", str(REPO / "resources/candlestick.ico"), "--paths", str(staging),
             "--add-data", f"{REPO / 'resources' / 'security_names.csv'}{os.pathsep}stockstudy/resources",
+            "--add-data", f"{REPO / 'resources' / 'candlestick.png'}{os.pathsep}stockstudy/resources",
             "--distpath", str(release), "--workpath", str(work / "work"),
             "--specpath", str(work), str(REPO / "apps" / "windows_entry.py"),
         ], check=True, cwd=staging)
-    finish_release(release, release / "stockstudy.exe")
+    finish_release(release, release / "股票分析.exe")
 
 
 def main():

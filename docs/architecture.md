@@ -1,6 +1,6 @@
 # 架构与客户端规划
 
-当前依赖方向为：CLI → service → strategies / readers → models。报告层将统一结果写成 CSV 和 JSON。领域模型与策略不依赖终端、网络、pandas 或操作系统界面。
+当前依赖方向为：CLI → service → strategies / readers → models。报告层在内存中整理统一结果，仅显式导出时写成 CSV 和 JSON。领域模型与策略不依赖终端、网络、pandas 或操作系统界面。
 
 ## 代码职责
 
@@ -15,7 +15,8 @@
 | `reports.py` | 可追踪参数和数据状态的输出 |
 | `cli.py` | 参数与退出码；不包含业务规则 |
 | `application.py` | 图形界面的分析请求、校验与结果操作 |
-| `windows.py` | Windows 图形界面、后台工作线程和结果表格 |
+| `windows.py` | 菜单栏、三分区界面、动态策略参数、后台分析与导出 |
+| `i18n.py` | 中英文界面、帮助和参数错误文案 |
 
 未来图形桌面、Web API 或后台任务应调用 `service.scan()`，而不是模拟 CLI 或重复写一份筛选逻辑。读取器生命周期由调用方管理。
 

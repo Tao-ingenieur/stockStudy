@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import __version__
 from .names import load_security_info
-from .reports import write_report
+from .reports import prepare_report, export_report
 from .service import scan
 from .readers import SOURCE_FACTORIES, open_source
 from .strategies import Strategy
@@ -30,8 +30,8 @@ def positive_int(value: str) -> int:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=f"StockStudy {__version__} 本地日线筛选")
-    parser.add_argument("--version", "-version", "-V", action="version", version=f"StockStudy {__version__}")
+    parser = argparse.ArgumentParser(description=f"股票分析 {__version__} 本地日线筛选")
+    parser.add_argument("--version", "-version", "-V", action="version", version=f"股票分析 {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("sources", help="列出数据源和规划状态")
     command = commands.add_parser("scan", help="扫描本地日线")
@@ -43,7 +43,7 @@ def main(argv=None) -> int:
     command.add_argument("--gain-threshold", default="10", help="涨幅严格超过此百分比；10 表示 10%%，默认 10")
     command.add_argument("--as-of", type=date.fromisoformat, help="只扫描最后一条记录恰为该日期的股票 YYYY-MM-DD")
     command.add_argument("--names", type=Path, help="自定义 market,code,name,status,name_checked_at CSV")
-    command.add_argument("--output-dir", type=Path, help="分析结果根目录")
+    command.add_argument("--output-dir", type=Path, help="明确指定后才导出结果到此目录；默认不保存文件")
     command.add_argument("--quiet", action="store_true")
     command.add_argument("--include-delisted", action="store_true", help="包含已确认退市股票（默认排除）；未知状态仍保留并提示")
     args = parser.parse_args(argv)
@@ -56,7 +56,7 @@ def main(argv=None) -> int:
         return 0
     workspace = (args.workspace or find_workspace()).resolve()
     data_path = args.data or workspace / "stock_data" / "tongdaxin" / "hsjday.zip"
-    output_dir = args.output_dir or workspace / "output"
+    output_dir = args.output_dir
     try:
         strategy = Strategy(
             args.strategy, args.period, Decimal(args.gain_threshold) / 100,
@@ -72,12 +72,13 @@ def main(argv=None) -> int:
                           security_info=security_info, include_delisted=args.include_delisted)
         finally:
             source.close()
-        report_dir = write_report(
-            result, strategy, names, output_dir,
+        rows, summary = prepare_report(
+            result, strategy, names,
             source_name=args.source, data_path=data_path,
             as_of=args.as_of.isoformat() if args.as_of else None,
             security_info=security_info,
         )
+        report_dir = export_report(rows, summary, output_dir) if output_dir is not None else None
     except (OSError, ValueError, InvalidOperation, zipfile.BadZipFile, EOFError, RuntimeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -86,6 +87,9 @@ def main(argv=None) -> int:
     print(f"Read {result.scanned}; matches {len(result.matches)}; read errors {failures}; date exclusions {exclusions}")
     print(f"Delisted excluded {len(result.delisted_excluded)}; unknown listing status {len(result.unknown_status)}")
     print(f"Insufficient history {len(result.insufficient_history)}; invalid close {len(result.invalid_close)}; price basis: unadjusted close-to-close")
-    print(f"Reports: {report_dir.resolve()}")
+    if report_dir is not None:
+        print(f"Reports: {report_dir.resolve()}")
+    else:
+        print("Results were not saved. Use --output-dir to export CSV and JSON.")
     # Date exclusions are reported, but are not data read failures.
     return 2 if failures else 0

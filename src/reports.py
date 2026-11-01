@@ -14,15 +14,11 @@ def price(cents: int | None) -> str:
     return "" if cents is None else f"{cents // 100}.{cents % 100:02d}"
 
 
-def write_report(
-    result: ScanResult, strategy: Strategy, names: dict[Security, str], output_dir: Path,
+def prepare_report(
+    result: ScanResult, strategy: Strategy, names: dict[Security, str],
     *, source_name: str, data_path: Path, as_of: str | None,
     security_info: dict[Security, SecurityInfo] | None = None,
-) -> Path:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
-    run_dir = output_dir / f"{stamp}_{strategy.name}_{uuid4().hex[:12]}"
-    run_dir.mkdir()
+) -> tuple[list[dict], dict]:
     rows = []
     for item in result.matches:
         info = security_info.get(item.security) if security_info is not None else None
@@ -35,13 +31,6 @@ def write_report(
             "gain_pct": float(round(item.gain_ratio * 100, 6)),
             "price_adjustment": "unadjusted",
         })
-    columns = ["market", "code", "name", "status", "date", "close", "base_date",
-               "base_close", "gain_ratio", "gain_pct", "price_adjustment"]
-    with (run_dir / "matches.csv").open("w", encoding="utf-8-sig", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=columns)
-        writer.writeheader()
-        writer.writerows(rows)
-    (run_dir / "matches.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     summary = {
         "version": __version__, "created_at": datetime.now(timezone.utc).isoformat(),
         "source": source_name, "data_path": str(data_path.resolve()),
@@ -67,5 +56,21 @@ def write_report(
         "unknown_listing_status": result.unknown_status,
         "errors": result.errors,
     }
+    return rows, summary
+
+
+def export_report(rows: list[dict], summary: dict, output_dir: Path) -> Path:
+    """Persist a completed result only when the caller explicitly requests export."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
+    run_dir = output_dir / f"股票分析_{stamp}_{uuid4().hex[:12]}"
+    run_dir.mkdir()
+    columns = ["market", "code", "name", "status", "date", "close", "base_date",
+               "base_close", "gain_ratio", "gain_pct", "price_adjustment"]
+    with (run_dir / "matches.csv").open("w", encoding="utf-8-sig", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
+    (run_dir / "matches.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     (run_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     return run_dir

@@ -1,6 +1,6 @@
-# StockStudy 本地日线筛选工具
+# 股票分析 本地日线筛选工具
 
-StockStudy 读取本地股票日线，按指定周期的收盘价涨幅筛选股票。当前已实现通达信 `.day` 文件及官方 ZIP 数据包读取，提供 CLI 和 Windows 图形界面 EXE。策略核心与数据源、界面分离，便于以后增加其他行情来源和客户端。
+股票分析 读取本地股票日线，按指定周期的收盘价涨幅筛选股票。当前已实现通达信 `.day` 文件及官方 ZIP 数据包读取，提供 CLI 和 Windows 图形界面 EXE。策略核心与数据源、界面分离，便于以后增加其他行情来源和客户端。
 
 这是一套规则筛选工具。当前没有回测、实时行情、自动交易或阶段底部确认功能。价格采用文件中的原始、不复权价格。
 
@@ -22,8 +22,8 @@ stockStudy/
 │   └── tongdaxin/hsjday.zip
 ├── output/                       分析结果，不上传 GitHub
 └── dist/                         发布产物，不上传 GitHub
-    ├── cli/stockstudy.pyz
-    ├── windows/stockstudy.exe
+    ├── cli/股票分析.pyz
+    ├── windows/股票分析.exe
     ├── web/
     ├── android/
     ├── ios/
@@ -46,7 +46,7 @@ python repo/stockstudy.py scan
 python repo/stockstudy.py scan --period 20 --gain-threshold 10
 ```
 
-默认使用工作区的 `stock_data/tongdaxin/hsjday.zip`，默认写入 `output`。从项目或发布目录启动时，程序会向上寻找同时含有 `stock_data` 和 `output` 的工作区；其他位置请显式指定 `--workspace` 或 `--data`、`--output-dir`。
+默认使用工作区的 `stock_data/tongdaxin/hsjday.zip`。分析默认只保留结果，不写文件；CLI 明确指定 `--output-dir` 才导出，GUI 使用“导出分析结果”。从项目或发布目录启动时，程序会向上寻找同时含有 `stock_data` 和 `output` 的工作区；其他位置请显式指定 `--workspace` 或 `--data`、`--output-dir`。
 
 ```powershell
 python repo/stockstudy.py scan --workspace D:/stockStudy
@@ -54,7 +54,7 @@ python repo/stockstudy.py scan --data D:/行情/vipdoc --output-dir D:/分析结
 python repo/stockstudy.py scan --data D:/行情/hsjday.zip --period 20
 ```
 
-相对路径按终端当前目录解释。数据可以放在任意有读取权限的目录；结果目录需要写入权限。
+相对路径按终端当前目录解释。数据可以放在任意有读取权限的目录；导出目录需要写入权限。
 
 可选安装成 `stockstudy` 命令，建议使用项目虚拟环境：
 
@@ -62,7 +62,7 @@ python repo/stockstudy.py scan --data D:/行情/hsjday.zip --period 20
 cd repo
 uv venv --python 3.12
 uv pip install -e .
-.venv/Scripts/stockstudy.exe scan
+.venv/Scripts/股票分析.exe scan
 ```
 
 激活虚拟环境后也可以直接使用 `stockstudy scan` 或 `python -m stockstudy scan`。
@@ -179,7 +179,13 @@ python repo/stockstudy.py scan --as-of 2026-10-30
 
 `gain_ratio` 为比例（0.12 表示 12%），`gain_pct` 为百分数（12 表示 12%）。报告中的基准和最新收盘价均为原始成交价。
 
-每次运行创建独立的 `output/<时间>_<策略>_<唯一后缀>/`，不会覆盖上次结果。
+分析不会自动写入磁盘。GUI 完成后在表格中查看，点击“导出分析结果”并选择目录才保存。未导出的结果关闭窗口后不保留；重新分析成功后替换窗口中的结果，取消或失败会保留上一次完成的结果。
+
+每次导出创建独立的 `<所选目录>/股票分析_<时间>_<唯一后缀>/`，不会覆盖之前的导出。导出包含全部结果，不受界面搜索条件或2000条预览限制影响。CLI 使用 `--output-dir` 明确导出：
+
+```powershell
+python repo/stockstudy.py scan --output-dir D:/分析结果
+```
 
 | 文件 | 内容 |
 | --- | --- |
@@ -187,28 +193,31 @@ python repo/stockstudy.py scan --as-of 2026-10-30
 | `matches.json` | 同样的命中记录，供后续 Web/API/移动客户端消费 |
 | `summary.json` | 参数、版本、数据路径、扫描数量、日期分布、缺失名称和错误明细 |
 
-单个损坏文件会记录错误并继续其他股票。退出码：`0` 扫描完成；`1` 参数、输入或输出发生致命错误；`2` 有股票文件读取失败，结果不完整。指定日期导致的正常排除不会产生退出码 2。无命中时仍输出带表头的 CSV 和空 JSON 列表。
+单个损坏文件会记录错误并继续其他股票。退出码：`0` 扫描完成；`1` 参数、输入或输出发生致命错误；`2` 有股票文件读取失败，结果不完整。指定日期导致的正常排除不会产生退出码 2。选择导出时，即使无命中也生成带表头的 CSV 和空 JSON 列表。
 
 结果中的代码按文本保存。使用 Excel 导入 CSV 时，请将代码列设置为文本，以免丢失前导零。
 
 ## 发布和不同客户端
 
-Windows 版提供独立图形界面，双击 `dist/windows/stockstudy.exe` 即可使用，不会打开命令行窗口。
+Windows 版提供独立图形界面，双击 `dist/windows/股票分析.exe` 即可使用，不会打开命令行窗口。
 
-1. 选择通达信 ZIP 数据包或解压后的行情目录，设置结果保存目录。
-2. 设置比较周期 N 和涨幅阈值，默认 N=20、涨幅严格超过 10%。
-3. 可填写末条日期 `YYYY-MM-DD`；留空时采用每只股票自身最后一条记录。
-4. 点击“开始分析”。进度条显示扫描进度，可以取消；取消不会生成本次报告。
-5. 默认勾选“排除已确认退市”；未知状态仍参与，并在分析后提示数量。
-6. 在表格中查看结果，按代码、名称或日期搜索，或点击“打开完整 CSV”“打开结果目录”。表格预览最多 2000 条，CSV / JSON 包含完整结果。涨幅为不复权收盘价变化，可能受分红送转影响。
+界面分为“分析设置、分析策略、分析结果”三个区域：
 
-窗口标题和“关于与帮助”显示版本。命令行任务使用 `dist/cli/stockstudy.pyz`。
+1. 在“分析设置”选择行情 ZIP 或目录，填写可选的末条日期，并设置是否排除已确认退市股票。
+2. 从策略下拉框选择策略。“分析策略”区域显示所选策略的参数；当前为区间涨幅，默认周期20、涨幅严格超过10%。
+3. 点击“开始分析”，后台扫描时可取消。在“分析结果”中查看股票、比较日期、收盘价和涨幅，支持搜索。
+4. 下方结果摘要说明复权情况、排除退市、状态未知、历史不足等。当前数据未提供复权因子时，简要提示本次采用不复权价格。
+5. 需要保存时，点击“导出分析结果”，或使用“文件 → 导出分析结果”。默认不保存文件。
+
+顶部菜单为“文件、分析、语言、关于”，可在“语言”中切换简体中文 / English，参数、已完成的结果与搜索条件会保留。“关于”菜单下包含独立的使用帮助，以及仅显示软件名称与版本的关于窗口。程序文件为 `股票分析.exe`，使用原创 K 线图标。
+
+窗口标题和关于窗口显示版本。CLI 发布文件为 `dist/cli/股票分析.pyz`。
 
 发布包不携带大体积行情数据，名称表内置。发布目录不包含版本号；CLI 的 `--help`、`--version`、`-version`、`-V` 可以显示软件版本。
 
 ```powershell
 python repo/scripts/build.py --target cli
-python dist/cli/stockstudy.pyz scan
+python dist/cli/股票分析.pyz scan
 ```
 
 构建 Windows EXE 时，在 Windows 上创建独立构建环境：
@@ -217,7 +226,7 @@ python dist/cli/stockstudy.pyz scan
 uv venv repo/.venv --python 3.12
 uv pip install --python repo/.venv/Scripts/python.exe -r repo/requirements-build.txt
 repo/.venv/Scripts/python.exe repo/scripts/build.py --target all
-dist/windows/stockstudy.exe
+dist/windows/股票分析.exe
 ```
 
 已存在 `.venv` 时跳过创建命令。构建依赖与项目运行依赖分离。
@@ -239,7 +248,7 @@ dist/windows/stockstudy.exe
 python repo/scripts/test.py
 ```
 
-测试覆盖北交所识别、退市三态标识与过滤、名录导入、GUI 参数校验、后台扫描、取消、结果表格及搜索、区间涨幅、精确阈值、历史不足与无效收盘价、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
+测试覆盖北交所识别、退市三态标识与过滤、名录导入、GUI 参数校验、后台扫描、取消、结果表格及搜索、中英文切换、分析不写文件与显式导出、区间涨幅、精确阈值、历史不足与无效收盘价、科创板、ZIP/目录一致性、坏文件隔离、日期排除、报告和 CLI。真实行情扫描结果放在工作区 `output`，不纳入源码测试或 Git。
 
 ## 后续数据源
 

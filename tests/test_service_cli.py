@@ -24,7 +24,7 @@ class ServiceCliTests(unittest.TestCase):
                 with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as stopped:
                     main([flag])
                 self.assertEqual(stopped.exception.code, 0)
-                self.assertIn(f"StockStudy {__version__}", output.getvalue())
+                self.assertIn(f"股票分析 {__version__}", output.getvalue())
 
     def make_data(self, root):
         directory = root / "sh" / "lday"
@@ -91,6 +91,15 @@ class ServiceCliTests(unittest.TestCase):
             self.assertEqual(summary["matches"], 0)
             with (run / "matches.csv").open(encoding="utf-8-sig", newline="") as stream:
                 self.assertIn("gain_pct", next(csv.reader(stream)))
+
+    def test_cli_does_not_export_without_explicit_output_directory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.make_data(root / "stock_data")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main(["scan", "--data", str(root / "stock_data"),
+                                      "--workspace", str(root), "--quiet"]), 0)
+            self.assertFalse((root / "output").exists())
 
     def test_bundled_name_dictionary_keeps_leading_zero(self):
         names = load_names()

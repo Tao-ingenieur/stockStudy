@@ -1,6 +1,5 @@
 """Application operations independent of the desktop widgets."""
 
-import json
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -9,15 +8,15 @@ from typing import Callable
 
 from .names import load_security_info
 from .readers import open_source
-from .reports import write_report
+from .reports import prepare_report, export_report
 from .service import ScanCancelled, scan
 from .strategies import Strategy
+from .i18n import translate
 
 
 @dataclass(frozen=True)
 class AnalysisRequest:
     data: Path
-    output: Path
     strategy: Strategy
     as_of: date | None = None
     include_delisted: bool = False
@@ -25,31 +24,25 @@ class AnalysisRequest:
 
 @dataclass(frozen=True)
 class AnalysisOutcome:
-    directory: Path
     summary: dict
     rows: list[dict]
 
 
-def make_request(data, output, period, threshold, as_of, include_delisted=False) -> AnalysisRequest:
+def make_request(data, period, threshold, as_of, include_delisted=False, language="zh") -> AnalysisRequest:
     if not data.strip():
-        raise ValueError("请选择通达信 ZIP 文件或解压后的数据目录。")
+        raise ValueError(translate(language, "missing_data"))
     data_path = Path(data.strip().strip('"')).expanduser().resolve()
     if not data_path.exists():
-        raise ValueError(f"行情路径不存在：\n{data_path}")
-    if not output.strip():
-        raise ValueError("请选择分析结果保存目录。")
-    output_path = Path(output.strip().strip('"')).expanduser().resolve()
-    if output_path.exists() and not output_path.is_dir():
-        raise ValueError("结果保存路径必须是文件夹。")
+        raise ValueError(translate(language, "bad_path", path=data_path))
     try:
         strategy = Strategy(period=int(period), gain_threshold=Decimal(threshold) / 100)
     except (ValueError, InvalidOperation):
-        raise ValueError("请检查参数：比较周期须为正整数，涨幅阈值须为非负有限数值。") from None
+        raise ValueError(translate(language, "bad_parameters")) from None
     try:
         day = date.fromisoformat(as_of.strip()) if as_of.strip() else None
     except ValueError:
-        raise ValueError("末条日期请使用 YYYY-MM-DD 格式，或留空。") from None
-    return AnalysisRequest(data_path, output_path, strategy, day, include_delisted)
+        raise ValueError(translate(language, "bad_date")) from None
+    return AnalysisRequest(data_path, strategy, day, include_delisted)
 
 
 def analyze(request: AnalysisRequest, *, progress: Callable[[int, int], None] | None = None,
@@ -64,9 +57,11 @@ def analyze(request: AnalysisRequest, *, progress: Callable[[int, int], None] | 
         source.close()
     if cancelled and cancelled():
         raise ScanCancelled()
-    directory = write_report(result, request.strategy, names, request.output,
+    rows, summary = prepare_report(result, request.strategy, names,
         source_name="tdx", data_path=request.data, as_of=request.as_of.isoformat() if request.as_of else None,
         security_info=security_info)
-    return AnalysisOutcome(directory,
-        json.loads((directory / "summary.json").read_text(encoding="utf-8")),
-        json.loads((directory / "matches.json").read_text(encoding="utf-8")))
+    return AnalysisOutcome(summary, rows)
+
+
+def export_analysis(outcome: AnalysisOutcome, output: Path) -> Path:
+    return export_report(outcome.rows, outcome.summary, output)
