@@ -4,6 +4,21 @@ TEXT = {
     "app": ("淘金人股票分析", "Taojinren Stock Analysis"),
     "tagline": ("本地行情 · 策略筛选", "Local market data · Strategy screening"),
     "file": ("文件", "File"), "analysis": ("分析", "Analysis"),
+    "download_menu": ("下载行情数据", "Download Market Data"),
+    "tdx_download": ("通达信日线数据", "Tongdaxin Daily Data"),
+    "open_download_page": ("打开官方下载页面", "Open Official Download Page"),
+    "use_downloaded_zip": ("选择已下载的 ZIP 并使用", "Choose Downloaded ZIP and Use"),
+    "close_window": ("关闭", "Close"),
+    "browser_failed": ("无法打开浏览器，请复制窗口中的网址到浏览器访问。", "Could not open a browser. Copy the URL in this window into your browser."),
+    "download_steps": (
+        "1. 打开通达信官网，查看“沪深京日线数据完整包”的更新日期。\n\n"
+        "2. 如需包含当天行情，请等官网更新日期变为当天后再下载。下载由浏览器完成，保存目录可自选。\n\n"
+        "3. 下载完成后，点击下方“选择已下载的 ZIP 并使用”。无需解压或安装通达信，随后点击主窗口的“开始分析”。\n\n"
+        "本软件不自动下载或定时更新；每次更新需手动操作。",
+        "1. Open Tongdaxin's official page and check the update date of the complete Shanghai/Shenzhen/Beijing daily package.\n\n"
+        "2. For today's data, wait until the page shows today's update date. Your browser downloads the file to a folder you choose.\n\n"
+        "3. When complete, choose the downloaded ZIP below, then click Start Analysis in the main window. No extraction or Tongdaxin installation is needed.\n\n"
+        "Updates are manual. This application does not download automatically or on a schedule."),
     "language": ("语言", "Language"), "about_menu": ("关于", "About"),
     "help": ("使用帮助", "Help"), "about": ("关于淘金人股票分析", "About Taojinren Stock Analysis"),
     "exit": ("退出", "Exit"), "settings": ("分析设置", "Analysis Settings"),
@@ -116,6 +131,7 @@ TEXT.update({
 
 TEXT["help_body"] = (
     "一、基本使用\n\n淘金人股票分析：读取本地日线，按所选条件筛选股票。\n\n"
+    "下载行情数据→通达信日线数据：打开官网，确认数据包更新日期后由浏览器下载，再选择已下载的ZIP即可使用，无需解压。每次更新需手动操作；包含当天行情须等官网更新日期变为当天。\n\n"
     "选择通达信 ZIP 或日线目录，选择策略、填写参数后开始分析；扫描可取消。每只股票只检查最新一条记录，最多命中一条。\n\n"
     "末条日期留空使用行情数据中的最新交易日；填写日期时，股票文件的末条记录必须恰为该日，不是历史回放。上市状态不参与筛选。\n\n"
     "结果可按市场、板块和代码/名称/日期搜索；最多预览2000条，导出不受此限制。点击“导出筛选结果”保存匹配行；文件菜单的“导出全部结果”保存原始结果。取消选择不保存，关闭窗口前请导出需要保留的结果。\n\n"
@@ -131,6 +147,7 @@ TEXT["help_body"] = (
     "突破幅度是收盘价超过前期最高价的百分比，不是当日涨幅。成交量倍数不是盘中量比。不要求当天收阳线，也不要求首次突破。历史不足或均量为零时跳过。\n\n"
     "所有周期按股票自身交易记录计数，不是自然日。",
     "1. BASIC USE\n\nTaojinren Stock Analysis screens local daily bars using your chosen conditions.\n\n"
+    "Download Market Data > Tongdaxin Daily Data opens the official page. Check its update date, download in your browser, then select the ZIP. No extraction is needed. Updates are manual; for today's data, wait until the page shows today's date.\n\n"
     "Choose a Tongdaxin ZIP or daily-bar folder, select a strategy, set its parameters and start. Scans can be cancelled. Only each stock's latest bar is tested, with at most one match.\n\n"
     "A blank latest date uses the latest trading date in the market data. A specified date must match the stock file's final bar; it is not a historical replay. Listing status does not affect screening.\n\n"
     "Filter by market, board or code/name/date. The preview shows up to 2,000 rows; exports include every matching row. Export Filtered saves the subset; File > Export All saves original results. Cancelling the picker saves nothing. Export before closing to keep results.\n\n"

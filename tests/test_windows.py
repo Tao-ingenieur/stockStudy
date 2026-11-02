@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from stockstudy.application import analyze, export_analysis, make_request
 from stockstudy.service import ScanCancelled
-from stockstudy.windows import StockStudyApp
+from stockstudy.windows import StockStudyApp, TDX_DOWNLOAD_URL
 from test_tdx import record, gain_records
 
 
@@ -62,6 +62,41 @@ class DesktopWidgetTests(unittest.TestCase):
 
     def tearDown(self):
         self.root.destroy()
+
+    def test_manual_download_select_cancel_and_use(self):
+        original = self.app.data.get()
+        self.app.show_download()
+        window = self.app.download_window
+        with patch("stockstudy.windows.webbrowser.open", return_value=True) as browser:
+            self.app._open_download_page()
+        browser.assert_called_once_with(TDX_DOWNLOAD_URL)
+        with patch("stockstudy.windows.filedialog.askopenfilename", return_value=""):
+            self.app._use_downloaded_zip()
+        self.assertEqual(self.app.data.get(), original)
+        self.assertTrue(window.winfo_exists())
+        with patch("stockstudy.windows.filedialog.askopenfilename", return_value="D:/行情/hsjday.zip"):
+            self.app._use_downloaded_zip()
+        self.assertEqual(self.app.data.get(), "D:/行情/hsjday.zip")
+        self.assertFalse(window.winfo_exists())
+        self.assertFalse(self.app.running)
+        self.assertIsNone(self.app.outcome)
+
+    def test_download_browser_failure_language_and_running_guard(self):
+        self.app.language.set("en")
+        self.app.switch_language()
+        self.app.show_download()
+        self.assertEqual(self.app.download_window.title(), "Tongdaxin Daily Data")
+        with patch("stockstudy.windows.webbrowser.open", return_value=False), \
+                patch("stockstudy.windows.messagebox.showerror") as error:
+            self.app._open_download_page()
+        error.assert_called_once()
+        self.app.download_window.destroy()
+        self.app._set_running(True)
+        self.app.show_download()
+        self.assertFalse(self.app.download_window.winfo_exists())
+        with patch("stockstudy.windows.filedialog.askopenfilename") as picker:
+            self.app._use_downloaded_zip()
+        picker.assert_not_called()
 
     def test_strategy_controls_and_defaults(self):
         self.assertFalse(hasattr(self.app, "comparison_box"))

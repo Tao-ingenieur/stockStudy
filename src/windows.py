@@ -3,6 +3,7 @@
 import queue
 import sys
 import threading
+import webbrowser
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -16,6 +17,7 @@ from .boards import BOARDS_BY_MARKET
 from .service import ScanCancelled
 
 STRATEGIES = {"gain": "gain", "ma-cross": "ma-cross", "breakout": "breakout"}
+TDX_DOWNLOAD_URL = "https://www.tdx.com.cn/article/vipdata.html"
 
 
 class StockStudyApp:
@@ -32,6 +34,7 @@ class StockStudyApp:
         self.exported_path = None
         self.exported_info = None
         self.help_window = None
+        self.download_window = None
         self.filter_after = None
         self.phase = "ready"
         self.done_count = self.total_count = 0
@@ -110,6 +113,10 @@ class StockStudyApp:
         file.add_separator()
         file.add_command(label=self.t("exit"), command=self._close)
         menu.add_cascade(label=self.t("file"), menu=file)
+        download = tk.Menu(menu, tearoff=False)
+        download.add_command(label=self.t("tdx_download"), command=self.show_download,
+                             state="disabled" if self.running else "normal")
+        menu.add_cascade(label=self.t("download_menu"), menu=download)
         analysis = tk.Menu(menu, tearoff=False)
         analysis.add_command(label=self.t("start"), command=self.start, state="disabled" if self.running else "normal")
         analysis.add_command(label=self.t("cancel"), command=self.cancel, state="normal" if self.running else "disabled")
@@ -367,6 +374,49 @@ class StockStudyApp:
         value = filedialog.askopenfilename(parent=self.root, title=self.t("zip"), filetypes=[("ZIP", "*.zip"), ("All files", "*.*")])
         if value:
             self.data.set(value)
+
+    def show_download(self):
+        if self.running:
+            return
+        if self.download_window is not None and self.download_window.winfo_exists():
+            self.download_window.lift()
+            return
+        self.download_window = window = tk.Toplevel(self.root)
+        window.title(self.t("tdx_download"))
+        window.transient(self.root)
+        window.geometry("700x540")
+        window.minsize(620, 540)
+        body = ttk.Frame(window, padding=22)
+        body.pack(fill="both", expand=True)
+        ttk.Label(body, text=self.t("tdx_download"), style="Stats.TLabel").pack(anchor="w")
+        instructions = ttk.Label(body, text=self.t("download_steps"), justify="left", wraplength=650)
+        instructions.pack(fill="x", pady=(14, 12))
+        body.bind("<Configure>", lambda e: instructions.configure(wraplength=max(300, e.width - 44)))
+        url = ttk.Entry(body)
+        url.insert(0, TDX_DOWNLOAD_URL)
+        url.configure(state="readonly")
+        url.pack(fill="x", pady=(0, 16))
+        ttk.Button(body, text=self.t("open_download_page"), command=self._open_download_page).pack(anchor="w")
+        ttk.Button(body, text=self.t("use_downloaded_zip"), command=self._use_downloaded_zip).pack(anchor="w", pady=10)
+        ttk.Button(body, text=self.t("close_window"), command=window.destroy).pack(side="bottom", anchor="e")
+        window.grab_set()
+
+    def _open_download_page(self):
+        try:
+            if webbrowser.open(TDX_DOWNLOAD_URL):
+                return
+        except (OSError, webbrowser.Error):
+            pass
+        messagebox.showerror(self.t("tdx_download"), self.t("browser_failed"), parent=self.download_window)
+
+    def _use_downloaded_zip(self):
+        if self.running:
+            return
+        value = filedialog.askopenfilename(parent=self.download_window, title=self.t("use_downloaded_zip"),
+                                           filetypes=[("ZIP", "*.zip")])
+        if value:
+            self.data.set(value)
+            self.download_window.destroy()
 
     def _choose_data_dir(self):
         if self.running:
